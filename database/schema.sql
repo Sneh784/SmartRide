@@ -1,0 +1,151 @@
+CREATE TABLE IF NOT EXISTS roles (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT
+);
+
+INSERT INTO roles (name, description) VALUES
+    ('CUSTOMER', 'Customer account'),
+    ('VENDOR', 'Vehicle vendor'),
+    ('DRIVER', 'Driver account'),
+    ('FLEET_MANAGER', 'Fleet manager account'),
+    ('ADMIN', 'Administrator account')
+ON CONFLICT (name) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS users (
+    id BIGSERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    role VARCHAR(50) NOT NULL,
+    approval_status VARCHAR(30),
+    approval_reason VARCHAR(1000),
+    phone VARCHAR(30),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_roles (
+    user_id BIGINT NOT NULL REFERENCES users(id),
+    role_id INT NOT NULL REFERENCES roles(id),
+    PRIMARY KEY (user_id, role_id)
+);
+
+CREATE TABLE IF NOT EXISTS vehicles (
+    id BIGSERIAL PRIMARY KEY,
+    vendor_id BIGINT,
+    category VARCHAR(100),
+    subcategory VARCHAR(100),
+    title VARCHAR(255) NOT NULL,
+    brand VARCHAR(100),
+    model VARCHAR(100),
+    year INT,
+    fuel_type VARCHAR(50),
+    transmission VARCHAR(50),
+    seating_capacity INT,
+    daily_rate NUMERIC(10,2) NOT NULL,
+    with_driver_rate NUMERIC(10,2),
+    city VARCHAR(100),
+    location VARCHAR(200),
+    availability_status VARCHAR(50),
+    approval_status VARCHAR(30),
+    approval_reason VARCHAR(1000),
+    rating DECIMAL(3,2) DEFAULT 0.00,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS customer_wishlist (
+    customer_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    vehicle_id BIGINT NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (customer_id, vehicle_id)
+);
+
+CREATE TABLE IF NOT EXISTS customer_kyc (
+    customer_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    document_type VARCHAR(40) NOT NULL,
+    document_last_four VARCHAR(4) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    rejection_reason VARCHAR(1000),
+    submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS customer_notifications (
+    id BIGSERIAL PRIMARY KEY,
+    customer_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(160) NOT NULL,
+    message VARCHAR(1000) NOT NULL,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS customer_support_tickets (
+    id BIGSERIAL PRIMARY KEY,
+    customer_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    subject VARCHAR(160) NOT NULL,
+    message VARCHAR(3000) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'OPEN',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+    id BIGSERIAL PRIMARY KEY,
+    admin_id BIGINT REFERENCES users(id),
+    action VARCHAR(80) NOT NULL,
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id BIGINT,
+    reason VARCHAR(1000),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS admin_notifications (
+    id BIGSERIAL PRIMARY KEY,
+    title VARCHAR(160) NOT NULL,
+    message VARCHAR(1000) NOT NULL,
+    event_type VARCHAR(50) NOT NULL,
+    entity_type VARCHAR(50),
+    entity_id BIGINT,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS platform_settings (
+    setting_key VARCHAR(100) PRIMARY KEY,
+    setting_value VARCHAR(2000) NOT NULL,
+    updated_by BIGINT REFERENCES users(id),
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS bookings (
+    id BIGSERIAL PRIMARY KEY,
+    customer_id BIGINT REFERENCES users(id),
+    vehicle_id BIGINT REFERENCES vehicles(id),
+    booking_type VARCHAR(50),
+    pickup_date TIMESTAMP NOT NULL,
+    return_date TIMESTAMP NOT NULL,
+    pickup_location VARCHAR(200),
+    return_location VARCHAR(200),
+    status VARCHAR(50) DEFAULT 'PENDING',
+    amount NUMERIC(10,2),
+    payment_status VARCHAR(50) DEFAULT 'PENDING',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+    id BIGSERIAL PRIMARY KEY,
+    booking_id BIGINT REFERENCES bookings(id),
+    amount NUMERIC(10,2) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'INR',
+    provider VARCHAR(50),
+    payment_id VARCHAR(200),
+    status VARCHAR(50) DEFAULT 'PENDING',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_vehicles_city ON vehicles(city);
+CREATE INDEX IF NOT EXISTS idx_bookings_customer ON bookings(customer_id);
