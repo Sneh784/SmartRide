@@ -60,22 +60,22 @@ class BackendApplicationTests {
 		when(vendorDocumentStorage.store(any(), anyBoolean())).thenAnswer(invocation ->
 				new VendorDocumentStorage.StoredFile(UUID.randomUUID() + ".pdf", ".pdf", "application/pdf"));
 
-		var application = Map.of(
-				"fullName", "Integration Vendor",
-				"email", email,
-				"mobileNumber", "9876543210",
-				"password", "StrongPass1!",
-				"confirmPassword", "StrongPass1!",
-				"businessName", "Integration Rentals",
-				"businessType", "Individual",
-				"businessEmail", "business-" + suffix + "@example.com",
-				"businessMobile", "9876543211",
-				"businessAddress", "1 Test Street",
-				"city", "Bengaluru",
-				"state", "Karnataka",
-				"pincode", "560001",
-				"termsAccepted", true,
-				"vendorPoliciesAccepted", true);
+		var application = Map.ofEntries(
+				Map.entry("fullName", "Integration Vendor"),
+				Map.entry("email", email),
+				Map.entry("mobileNumber", "9876543210"),
+				Map.entry("password", "StrongPass1!"),
+				Map.entry("confirmPassword", "StrongPass1!"),
+				Map.entry("businessName", "Integration Rentals"),
+				Map.entry("businessType", "Individual"),
+				Map.entry("businessEmail", "business-" + suffix + "@example.com"),
+				Map.entry("businessMobile", "+91 98765-43211"),
+				Map.entry("businessAddress", "1 Test Street"),
+				Map.entry("city", "Bengaluru"),
+				Map.entry("state", "Karnataka"),
+				Map.entry("pincode", "560001"),
+				Map.entry("termsAccepted", true),
+				Map.entry("vendorPoliciesAccepted", true));
 		MockMultipartFile applicationPart = new MockMultipartFile(
 				"application", "", MediaType.APPLICATION_JSON_VALUE, objectMapper.writeValueAsBytes(application));
 
@@ -87,6 +87,14 @@ class BackendApplicationTests {
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.status").value("PENDING"))
 				.andExpect(jsonPath("$.email").value(email));
+
+		mockMvc.perform(multipart("/api/vendor/auth/register")
+						.file(applicationPart)
+						.file(new MockMultipartFile("identityProof", "identity.pdf", "application/pdf", pdf))
+						.file(new MockMultipartFile("panCard", "pan.pdf", "application/pdf", pdf))
+						.file(new MockMultipartFile("addressProof", "address.pdf", "application/pdf", pdf)))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.message").value("An account with this email already exists"));
 	}
 
 }

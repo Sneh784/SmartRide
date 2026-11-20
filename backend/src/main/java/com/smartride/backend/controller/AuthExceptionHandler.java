@@ -3,6 +3,7 @@ package com.smartride.backend.controller;
 import com.smartride.backend.dto.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -25,6 +26,16 @@ public class AuthExceptionHandler {
     public ResponseEntity<ApiResponse> handleInvalidJson(HttpMessageNotReadableException exception) {
         return ResponseEntity.badRequest()
                 .body(new ApiResponse(false, "Request body is missing or contains invalid JSON"));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiResponse> handleResponseStatus(ResponseStatusException exception) {
+        String reason = exception.getReason();
+        String message = reason == null || reason.isBlank()
+                ? "The request could not be completed"
+                : reason;
+        return ResponseEntity.status(exception.getStatusCode())
+                .body(new ApiResponse(false, message));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

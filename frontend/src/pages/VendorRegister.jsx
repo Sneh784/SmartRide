@@ -118,7 +118,7 @@ export default function VendorRegister() {
         <Section title="Personal information">
           <Field label="Full name" name="fullName" value={form.fullName} onChange={handleChange} autoComplete="name" />
           <Field label="Email address" name="email" type="email" value={form.email} onChange={handleChange} autoComplete="email" />
-          <Field label="Mobile number" name="mobileNumber" type="tel" value={form.mobileNumber} onChange={handleChange} pattern="^(?:\+?91[ -]?)?[6-9][0-9]{9}$" title="Enter a valid Indian mobile number" autoComplete="tel" />
+          <Field label="Mobile number" name="mobileNumber" type="tel" value={form.mobileNumber} onChange={handleChange} pattern="^\s*(?:\+?91[ \-]?)?[6-9](?:[ \-]?[0-9]){9}\s*$" title="Enter a valid Indian mobile number" autoComplete="tel" />
           <Field label="Password" name="password" type="password" value={form.password} onChange={handleChange} autoComplete="new-password" />
           <Field label="Confirm password" name="confirmPassword" type="password" value={form.confirmPassword} onChange={handleChange} autoComplete="new-password" />
         </Section>
@@ -127,7 +127,7 @@ export default function VendorRegister() {
           <Field label="Business name" name="businessName" value={form.businessName} onChange={handleChange} />
           <Field label="Business type" name="businessType" value={form.businessType} onChange={handleChange} placeholder="Individual, company, partnership..." />
           <Field label="Business email" name="businessEmail" type="email" value={form.businessEmail} onChange={handleChange} />
-          <Field label="Business mobile number" name="businessMobile" type="tel" value={form.businessMobile} onChange={handleChange} pattern="^(?:\+?91[ -]?)?[6-9][0-9]{9}$" title="Enter a valid Indian mobile number" />
+          <Field label="Business mobile number" name="businessMobile" type="tel" value={form.businessMobile} onChange={handleChange} pattern="^\s*(?:\+?91[ \-]?)?[6-9](?:[ \-]?[0-9]){9}\s*$" title="Enter a valid Indian mobile number" />
           <label className="block sm:col-span-2">
             <span className="mb-1.5 block text-sm font-semibold text-slate-700">Business address *</span>
             <textarea name="businessAddress" required value={form.businessAddress} onChange={handleChange} rows={3} className="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-sm outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-orange-100" />

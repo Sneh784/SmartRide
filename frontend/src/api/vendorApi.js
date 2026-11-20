@@ -16,9 +16,7 @@ vendorClient.interceptors.request.use((config) => {
 });
 
 export const vendorApi = {
-  register: (formData) => vendorClient.post('/auth/register', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }),
+  register: (formData) => vendorClient.post('/auth/register', formData),
   login: (payload) => vendorClient.post('/auth/login', payload),
   applicationStatus: () => vendorClient.get('/application/status'),
   dashboard: () => vendorClient.get('/dashboard'),
