@@ -1,11 +1,16 @@
 package com.smartride.backend.repository;
 
 import com.smartride.backend.dto.CustomerBookingDto;
+import com.smartride.backend.service.CustomerKycDocumentStorage;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.sql.Timestamp;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Repository
@@ -18,53 +23,77 @@ public class CustomerPortalRepository {
 
     public List<CustomerBookingDto> findBookings(long customerId) {
         return jdbcTemplate.query("""
-                SELECT b.id, b.booking_type, b.status, b.amount, b.pickup_date, b.return_date,
+                SELECT b.id, b.vehicle_id, b.booking_type, b.status, b.payment_status,
+                       b.amount, b.pickup_date, b.return_date,
                        b.pickup_location, b.return_location, b.created_at,
-                       COALESCE(v.title, CONCAT_WS(' ', v.brand, v.model), 'Vehicle') AS vehicle_name
+                       EXISTS (SELECT 1 FROM payments p
+                               WHERE p.booking_id = b.id AND p.status = 'PENDING'
+                                 AND p.provider_order_id IS NOT NULL) AS payment_order_open,
+                       COALESCE(v.title, CONCAT_WS(' ', v.brand, v.model), 'Vehicle') AS vehicle_name,
+                       EXISTS (SELECT 1 FROM customer_reviews r WHERE r.booking_id = b.id) AS reviewed
                 FROM bookings b
                 LEFT JOIN vehicles v ON v.id = b.vehicle_id
                 WHERE b.customer_id = ?
                 ORDER BY b.created_at DESC NULLS LAST, b.id DESC
                 """, (rs, rowNum) -> new CustomerBookingDto(
-                rs.getLong("id"), rs.getString("vehicle_name"), rs.getString("booking_type"),
-                rs.getString("status"), rs.getBigDecimal("amount"),
+                rs.getLong("id"), rs.getLong("vehicle_id"), rs.getString("vehicle_name"),
+                rs.getString("booking_type"), rs.getString("status"), rs.getString("payment_status"),
+                rs.getBigDecimal("amount"),
                 localDateTime(rs.getTimestamp("pickup_date")),
                 localDateTime(rs.getTimestamp("return_date")),
                 rs.getString("pickup_location"), rs.getString("return_location"),
-                localDateTime(rs.getTimestamp("created_at"))), customerId);
+                localDateTime(rs.getTimestamp("created_at")), rs.getBoolean("payment_order_open"),
+                rs.getBoolean("reviewed")), customerId);
     }
 
     public List<Map<String, Object>> findPayments(long customerId) {
-        return jdbcTemplate.queryForList("""
+        return normalizedRows(jdbcTemplate.queryForList("""
                 SELECT p.id, p.booking_id AS bookingId, p.amount, p.currency, p.provider,
                        p.payment_id AS paymentReference, p.status, p.created_at AS paymentDate
                 FROM payments p
                 JOIN bookings b ON b.id = p.booking_id
                 WHERE b.customer_id = ?
                 ORDER BY p.created_at DESC NULLS LAST, p.id DESC
-                """, customerId);
+                """, customerId));
     }
 
     public List<Map<String, Object>> findVehicles() {
-        return jdbcTemplate.queryForList("""
+        return normalizedRows(jdbcTemplate.queryForList("""
                 SELECT id, title, brand, model, category, city, location,
-                       daily_rate AS dailyRate, rating, availability_status AS availabilityStatus
+                       daily_rate AS dailyRate, with_driver_rate AS withDriverRate,
+                       rating, availability_status AS availabilityStatus
                 FROM vehicles
                 WHERE UPPER(COALESCE(approval_status, 'PENDING')) = 'APPROVED'
                   AND UPPER(COALESCE(availability_status, 'UNAVAILABLE')) = 'AVAILABLE'
                 ORDER BY title
-                """);
+                """));
+    }
+
+    public Map<String, Object> findAvailableVehicle(long vehicleId) {
+        try {
+            return normalized(jdbcTemplate.queryForMap("""
+                    SELECT id, title, brand, model, category, city, location,
+                           daily_rate AS dailyRate, with_driver_rate AS withDriverRate, rating,
+                           availability_status AS availabilityStatus
+                    FROM vehicles
+                    WHERE id = ?
+                      AND UPPER(COALESCE(approval_status, 'PENDING')) = 'APPROVED'
+                      AND UPPER(COALESCE(availability_status, 'UNAVAILABLE')) = 'AVAILABLE'
+                    """, vehicleId));
+        } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vehicle not found or is no longer available");
+        }
     }
 
     public List<Map<String, Object>> findWishlist(long customerId) {
-        return jdbcTemplate.queryForList("""
+        return normalizedRows(jdbcTemplate.queryForList("""
                 SELECT v.id, v.title, v.brand, v.model, v.category, v.city,
                        v.daily_rate AS dailyRate, v.rating
                 FROM customer_wishlist w
                 JOIN vehicles v ON v.id = w.vehicle_id
                 WHERE w.customer_id = ?
                 ORDER BY w.created_at DESC
-                """, customerId);
+                """, customerId));
     }
 
     public void addToWishlist(long customerId, long vehicleId) {
@@ -81,23 +110,61 @@ public class CustomerPortalRepository {
     }
 
     public List<Map<String, Object>> findKyc(long customerId) {
-        return jdbcTemplate.queryForList("""
+        return normalizedRows(jdbcTemplate.queryForList("""
                 SELECT document_type AS documentType, document_last_four AS documentLastFour,
+                       document_original_name AS documentOriginalName,
                        status, submitted_at AS submittedAt
                 FROM customer_kyc WHERE customer_id = ?
-                """, customerId);
+                """, customerId));
     }
 
-    public void submitKyc(long customerId, String documentType, String documentNumber) {
+    public String kycDocumentKey(long customerId) {
+        return jdbcTemplate.query("""
+                SELECT document_storage_key FROM customer_kyc WHERE customer_id = ?
+                """, rs -> rs.next() ? rs.getString(1) : null, customerId);
+    }
+
+    public Map<String, Object> kycDocument(long customerId) {
+        try {
+            return normalized(jdbcTemplate.queryForMap("""
+                    SELECT document_storage_key AS storage_key,
+                           document_original_name AS original_name,
+                           document_content_type AS content_type
+                    FROM customer_kyc WHERE customer_id = ?
+                    """, customerId));
+        } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "KYC document not found");
+        }
+    }
+
+    public void submitKyc(long customerId, String documentType, String documentNumber,
+                          CustomerKycDocumentStorage.StoredFile document) {
         String lastFour = documentNumber.substring(documentNumber.length() - 4);
-        jdbcTemplate.update("""
-                INSERT INTO customer_kyc (customer_id, document_type, document_last_four, status, submitted_at)
-                VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
-                ON CONFLICT (customer_id) DO UPDATE SET
-                    document_type = EXCLUDED.document_type,
-                    document_last_four = EXCLUDED.document_last_four,
-                    status = 'PENDING', submitted_at = CURRENT_TIMESTAMP
-                """, customerId, documentType, lastFour);
+        jdbcTemplate.queryForObject("SELECT id FROM users WHERE id = ? FOR UPDATE", Long.class, customerId);
+        int updated = jdbcTemplate.update("""
+                UPDATE customer_kyc SET
+                    document_type = ?, document_last_four = ?, status = 'PENDING',
+                    rejection_reason = NULL, submitted_at = CURRENT_TIMESTAMP,
+                    document_storage_key = COALESCE(?, document_storage_key),
+                    document_original_name = COALESCE(?, document_original_name),
+                    document_content_type = COALESCE(?, document_content_type)
+                WHERE customer_id = ?
+                """, documentType, lastFour,
+                document == null ? null : document.key(),
+                document == null ? null : document.originalName(),
+                document == null ? null : document.contentType(), customerId);
+        if (updated == 0) {
+            jdbcTemplate.update("""
+                    INSERT INTO customer_kyc (
+                        customer_id, document_type, document_last_four, status,
+                        document_storage_key, document_original_name, document_content_type, submitted_at
+                    )
+                    VALUES (?, ?, ?, 'PENDING', ?, ?, ?, CURRENT_TIMESTAMP)
+                    """, customerId, documentType, lastFour,
+                    document == null ? null : document.key(),
+                    document == null ? null : document.originalName(),
+                    document == null ? null : document.contentType());
+        }
         jdbcTemplate.update("""
                 INSERT INTO admin_notifications (title, message, event_type, entity_type, entity_id)
                 VALUES ('KYC submission received', ?, 'KYC_SUBMITTED', 'CUSTOMER_KYC', ?)
@@ -105,11 +172,11 @@ public class CustomerPortalRepository {
     }
 
     public List<Map<String, Object>> findNotifications(long customerId) {
-        return jdbcTemplate.queryForList("""
+        return normalizedRows(jdbcTemplate.queryForList("""
                 SELECT id, title, message, is_read AS "read", created_at AS createdAt
                 FROM customer_notifications WHERE customer_id = ?
                 ORDER BY created_at DESC, id DESC
-                """, customerId);
+                """, customerId));
     }
 
     public boolean markNotificationRead(long customerId, long notificationId) {
@@ -119,11 +186,11 @@ public class CustomerPortalRepository {
     }
 
     public List<Map<String, Object>> findSupportTickets(long customerId) {
-        return jdbcTemplate.queryForList("""
+        return normalizedRows(jdbcTemplate.queryForList("""
                 SELECT id, subject, message, status, created_at AS createdAt
                 FROM customer_support_tickets WHERE customer_id = ?
                 ORDER BY created_at DESC, id DESC
-                """, customerId);
+                """, customerId));
     }
 
     public long createSupportTicket(long customerId, String subject, String message) {
@@ -138,7 +205,48 @@ public class CustomerPortalRepository {
         return id == null ? 0 : id;
     }
 
+    public void submitReview(long customerId, long bookingId, int rating, String comment) {
+        Map<String, Object> booking;
+        try {
+            booking = normalized(jdbcTemplate.queryForMap("""
+                    SELECT id, vehicle_id, status FROM bookings
+                    WHERE id = ? AND customer_id = ?
+                    """, bookingId, customerId));
+        } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found");
+        }
+        String status = String.valueOf(booking.get("status")).toUpperCase(Locale.ROOT);
+        if (!List.of("COMPLETED", "RETURNED").contains(status)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "You can review a booking after the vehicle has been returned");
+        }
+        try {
+            jdbcTemplate.update("""
+                    INSERT INTO customer_reviews (booking_id, customer_id, vehicle_id, rating, comment)
+                    VALUES (?, ?, ?, ?, ?)
+                    """, bookingId, customerId, booking.get("vehicle_id"), rating,
+                    comment == null || comment.isBlank() ? null : comment.trim());
+        } catch (org.springframework.dao.DuplicateKeyException exception) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "You have already reviewed this booking");
+        }
+        jdbcTemplate.update("""
+                UPDATE vehicles SET rating = (
+                    SELECT ROUND(AVG(rating), 2) FROM customer_reviews WHERE vehicle_id = ?
+                ) WHERE id = ?
+                """, booking.get("vehicle_id"), booking.get("vehicle_id"));
+    }
+
     private static java.time.LocalDateTime localDateTime(Timestamp timestamp) {
         return timestamp == null ? null : timestamp.toLocalDateTime();
+    }
+
+    private static List<Map<String, Object>> normalizedRows(List<Map<String, Object>> rows) {
+        return rows.stream().map(CustomerPortalRepository::normalized).toList();
+    }
+
+    private static Map<String, Object> normalized(Map<String, Object> row) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        row.forEach((key, value) -> result.put(key.toLowerCase(Locale.ROOT), value));
+        return result;
     }
 }

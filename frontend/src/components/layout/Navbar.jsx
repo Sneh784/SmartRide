@@ -12,7 +12,7 @@ const navItems = [
 
 const registrationItems = [
   { label: 'Become a Vendor', to: '/vendor/register', icon: BriefcaseBusiness },
-  { label: 'Driver Portal', to: '/driver-dashboard', icon: CarFront },
+  { label: 'Become a Driver', to: '/driver/register', icon: CarFront },
 ];
 
 function NavigationLinks({ onNavigate, className = '' }) {

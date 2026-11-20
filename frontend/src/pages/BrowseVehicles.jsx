@@ -1,11 +1,11 @@
 import { Filter, Search, SlidersHorizontal } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { vehicleCategories } from '../utils/vehicleCategories';
 
 const vehicles = [
-  { name: 'Mercedes GLE', price: '₹4,800/day', city: 'Bengaluru', type: 'Car', rating: 4.9 },
-  { name: 'Mahindra Bolero', price: '₹2,900/day', city: 'Hyderabad', type: 'SUV', rating: 4.7 },
-  { name: 'Force Traveller', price: '₹5,400/day', city: 'Mumbai', type: 'Passenger', rating: 4.8 },
-  { name: 'Royal Enfield', price: '₹1,700/day', city: 'Pune', type: 'Two-Wheeler', rating: 4.6 },
+  { name: 'Mercedes GLE', price: '₹4,800/day', city: 'Bengaluru', type: 'Cars', rating: 4.9 },
+  { name: 'Mahindra Bolero', price: '₹2,900/day', city: 'Hyderabad', type: 'Cars', rating: 4.7 },
+  { name: 'Force Traveller', price: '₹5,400/day', city: 'Mumbai', type: 'Passenger Vehicles', rating: 4.8 },
+  { name: 'Royal Enfield', price: '₹1,700/day', city: 'Pune', type: 'Two-Wheelers', rating: 4.6 },
 ];
 
 export default function BrowseVehicles() {
@@ -39,7 +39,7 @@ export default function BrowseVehicles() {
             <div>
               <p className="mb-2 font-semibold text-slate-700">Category</p>
               <div className="space-y-2 text-slate-600">
-                {['Cars', 'Two-Wheelers', 'Commercial Vehicles', 'Passenger Vehicles'].map((item) => (
+                {vehicleCategories.map((item) => (
                   <label key={item} className="flex items-center gap-2">
                     <input type="checkbox" defaultChecked={item === 'Cars'} />
                     <span>{item}</span>
@@ -100,7 +100,7 @@ export default function BrowseVehicles() {
                       <p className="text-xs uppercase tracking-[0.2em] text-slate-500">From</p>
                       <p className="text-2xl font-black text-slate-900">{vehicle.price}</p>
                     </div>
-                    <Link to="/vehicles/1" className="rounded-full bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white">View details</Link>
+                    <a href="/vehicles/1" className="rounded-full bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white">View details</a>
                   </div>
                 </div>
               </article>

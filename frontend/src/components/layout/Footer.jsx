@@ -15,7 +15,7 @@ const footerLinks = [
     heading: 'Partner with us',
     links: [
       { label: 'Become a vendor', to: '/vendor/register' },
-      { label: 'Driver portal', to: '/driver-dashboard' },
+      { label: 'Become a driver', to: '/driver/register' },
       { label: 'Fleet solutions', to: '/vendor/register' },
     ],
   },

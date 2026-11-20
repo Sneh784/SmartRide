@@ -321,8 +321,8 @@ export default function Home() {
             <Link to="/vendor/register" className="inline-flex items-center justify-center rounded-xl border border-white/80 bg-white px-6 py-3 text-base font-semibold text-[#ff6b00] transition hover:bg-orange-50">
               Become a vendor
             </Link>
-            <Link to="/driver-dashboard" className="inline-flex items-center justify-center rounded-xl border border-white/80 bg-transparent px-6 py-3 text-base font-semibold text-white transition hover:bg-white/10">
-              Driver portal
+            <Link to="/driver/register" className="inline-flex items-center justify-center rounded-xl border border-white/80 bg-transparent px-6 py-3 text-base font-semibold text-white transition hover:bg-white/10">
+              Become a driver
             </Link>
           </div>
         </div>

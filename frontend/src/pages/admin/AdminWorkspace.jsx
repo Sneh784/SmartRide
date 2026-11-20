@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Activity, ArrowDownToLine, CalendarDays, CarFront, CircleAlert, CreditCard, FileCheck2, LoaderCircle, Search, ShieldCheck, Users } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { adminApi } from '../../api/adminApi';
 
 const read = (row, key) => row?.[key] ?? row?.[key.toLowerCase()] ?? row?.[key.replace(/[A-Z]/g,(c)=>`_${c.toLowerCase()}`)];
@@ -26,6 +26,45 @@ function ReasonModal({item,onClose,onConfirm}){const [reason,setReason]=useState
 
 function RevenueChart({items}){const data=[...(items||[])].reverse();const max=Math.max(...data.map(x=>Number(read(x,'revenue'))||0),1);return <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="mb-5 flex items-center gap-2"><Activity size={18} className="text-[#E85D00]"/><h2 className="font-bold">Revenue analytics</h2></div>{!data.length?<Empty label="No successful payment records for this period."/>:<div className="flex h-48 items-end gap-2 overflow-x-auto border-b border-slate-100 pb-2">{data.map((point,index)=>{const value=Number(read(point,'revenue'))||0;return <div key={String(read(point,'period'))+index} title={`${when(read(point,'period'))}: ${cash(value)}`} className="flex h-full min-w-8 flex-1 flex-col justify-end"><div className="min-h-1 rounded-t-md bg-[#FF6B00] hover:bg-[#E85D00]" style={{height:`${Math.max(3,value/max*88)}%`}}/><span className="mt-2 truncate text-center text-[9px] text-slate-400">{new Date(read(point,'period')).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span></div>;})}</div>}<p className="mt-3 text-xs text-slate-400">Revenue includes recorded successful payments only.</p></div>;}
 
+function PendingVendorRequests() {
+  const { data, loading, error, reload } = useLoad(
+    () => adminApi.vendorApplications({ status: 'PENDING', page: 0, size: 5 }),
+  );
+  const rows = read(data, 'items') || [];
+  const total = read(data, 'totalElements') || 0;
+
+  return (
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-bold">Pending vendor approvals</h2>
+          <p className="mt-1 text-sm text-slate-500">{total} application{total === 1 ? '' : 's'} waiting for review</p>
+        </div>
+        <Link to="/admin/vendors/pending" className="whitespace-nowrap rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-bold text-[#B54700] hover:bg-orange-100">
+          View all
+        </Link>
+      </div>
+      <Banner error={error} onRetry={reload} />
+      {loading ? <Loading /> : rows.length ? (
+        <div className="divide-y divide-slate-100">
+          {rows.map((row) => (
+            <Link key={read(row, 'id')} to="/admin/vendors/pending" className="flex flex-wrap items-center justify-between gap-3 py-3 hover:bg-slate-50">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">{read(row, 'fullName')}</p>
+                <p className="mt-0.5 text-xs text-slate-500">{read(row, 'businessName')} · {read(row, 'email')}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Status value={read(row, 'status')} />
+                <span className="text-xs text-slate-400">{when(read(row, 'submittedAt'))}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : <Empty label="No pending vendor applications." />}
+    </section>
+  );
+}
+
 function AdminDashboardPage(){const[period,setPeriod]=useState('month');const{data,loading,error,reload}=useLoad(()=>adminApi.dashboard(period),[period]);if(loading)return <Loading/>;const stats=read(data,'statistics')||{};const cards=[['Total customers',read(stats,'customers'),Users],['Total vendors',read(stats,'vendors'),ShieldCheck],['Total drivers',read(stats,'drivers'),CarFront],['Fleet managers',read(stats,'fleet_managers'),Users],['Total vehicles',read(stats,'vehicles'),CarFront],['Pending approvals',read(stats,'pending_approvals'),FileCheck2],['Total bookings',read(stats,'bookings'),CalendarDays],['Recorded revenue',cash(read(stats,'revenue')),CreditCard]];const bookingStats=[['Pending',read(stats,'pending_bookings')],['Active',read(stats,'active_bookings')],['Completed',read(stats,'completed_bookings')],['Cancelled',read(stats,'cancelled_bookings')]];return <><Heading title="Admin dashboard" subtitle="Live overview from SmartRide accounts, bookings and payment records."><select value={period} onChange={e=>setPeriod(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"><option value="day">Daily</option><option value="week">Weekly</option><option value="month">Monthly</option><option value="year">Yearly</option></select></Heading><Banner error={error} onRetry={reload}/><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(([label,value,Icon])=><article key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><p className="text-sm text-slate-500">{label}</p><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-[#D95400]"><Icon size={20}/></span></div><p className="mt-4 text-2xl font-extrabold">{value??0}</p></article>)}</div><div className="mt-6 grid gap-6 xl:grid-cols-[1.35fr_.9fr]"><RevenueChart items={read(data,'revenue')}/><section className="rounded-2xl border border-slate-200 bg-white p-5"><h2 className="mb-4 font-bold">Booking analytics</h2><div className="space-y-3">{bookingStats.map(([label,value])=><div key={label} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3"><span className="text-sm text-slate-600">{label} bookings</span><span className="font-extrabold">{value??0}</span></div>)}</div></section></div><section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5"><h2 className="mb-4 font-bold">Recent activity</h2>{read(data,'activities')?.length?<div className="divide-y divide-slate-100">{read(data,'activities').map((item,index)=><div key={`${read(item,'type')}-${index}`} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="text-sm font-semibold">{read(item,'title')}</p><p className="text-xs text-slate-500">{read(item,'description')}</p></div><div className="flex items-center gap-3"><Status value={read(item,'type')}/><span className="text-xs text-slate-400">{when(read(item,'occurred_at'))}</span></div></div>)}</div>:<Empty label="No recent account, booking or payment activity."/>}</section></>;}
 
 function AdminUserManagement({role,title}){const[search,setSearch]=useState('');const[status,setStatus]=useState('');const{data,loading,error,reload}=useLoad(()=>adminApi.users(role,{search,status}),[role,search,status]);const[reject,setReject]=useState(null);const[actionError,setActionError]=useState('');const act=async(row,next,reason)=>{try{await adminApi.setUserStatus(role,read(row,'id'),{status:next,reason});setReject(null);setActionError('');await reload();}catch(e){setActionError(e?.response?.data?.detail||'Could not update account status.');}};const roleStatuses=role==='customers'?['ACTIVE','SUSPENDED']:['PENDING','APPROVED','REJECTED','SUSPENDED'];const actions=(row)=>{const current=String(read(row,'status')||'').toUpperCase();const approve=role==='customers'?'ACTIVE':'APPROVED';return <div className="flex min-w-48 flex-wrap gap-2">{(current==='PENDING'||current==='REJECTED'||current==='SUSPENDED')&&<button onClick={()=>act(row,approve)} className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700">{current==='PENDING'?'Approve':'Activate'}</button>}{current==='PENDING'&&<button onClick={()=>setReject(row)} className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-700">Reject</button>}{(current==='APPROVED'||current==='ACTIVE')&&<button onClick={()=>act(row,'SUSPENDED')} className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700">Suspend</button>}</div>;};return <><Heading title={title} subtitle="Review account details and apply audited status changes."><SearchFilter search={search} setSearch={setSearch} status={status} setStatus={setStatus} statuses={roleStatuses}/></Heading><Banner error={error||actionError} onRetry={reload}/>{loading?<Loading/>:<Table rows={data||[]} columns={[["id","ID"],["name","Name"],["email","Email"],["phone","Phone"],["status","Status"],["created_at","Created"]]} renderActions={actions}/ >}{reject&&<ReasonModal item={read(reject,'name')||'account'} onClose={()=>setReject(null)} onConfirm={(reason)=>act(reject,'REJECTED',reason)}/>}</>;}
@@ -36,7 +75,61 @@ function AdminBookings(){const[search,setSearch]=useState('');const[status,setSt
 
 function AdminPayments(){const[search,setSearch]=useState('');const[status,setStatus]=useState('');const{data,loading,error,reload}=useLoad(()=>adminApi.payments({search,status}),[search,status]);return <><Heading title="Payment Management" subtitle="Read-only payment records. Successful status comes from the recorded payment verification, never an admin toggle."><SearchFilter search={search} setSearch={setSearch} status={status} setStatus={setStatus} statuses={['PENDING','SUCCESS','SUCCEEDED','COMPLETED','FAILED','REFUNDED']}/></Heading><Banner error={error} onRetry={reload}/>{loading?<Loading/>:<Table rows={data||[]} columns={[["transaction_id","Transaction"],["booking_id","Booking"],["customer_name","Customer"],["customer_email","Email"],["amount","Amount"],["currency","Currency"],["provider","Method"],["payment_id","Payment reference"],["status","Status"],["payment_date","Date"]]}/>}</>;}
 
-function AdminKyc(){const[status,setStatus]=useState('PENDING');const{data,loading,error,reload}=useLoad(()=>adminApi.kyc({status}),[status]);const[reject,setReject]=useState(null);const[actionError,setActionError]=useState('');const act=async(row,next,reason)=>{try{await adminApi.setKycStatus(read(row,'id'),{status:next,reason});setReject(null);setActionError('');await reload();}catch(e){setActionError(e?.response?.data?.detail||'Could not update verification.');}};const actions=(row)=>{if(read(row,'status')!=='PENDING')return <span className="text-xs text-slate-400">Reviewed</span>;return <div className="flex gap-2"><button onClick={()=>act(row,'VERIFIED')} className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700">Verify</button><button onClick={()=>setReject(row)} className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-700">Reject</button></div>;};return <><Heading title="KYC Verification" subtitle="Only masked document references are stored by the customer portal; no private document URL is exposed."><select value={status} onChange={e=>setStatus(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"><option value="">All statuses</option>{['PENDING','VERIFIED','REJECTED'].map(s=><option key={s}>{s}</option>)}</select></Heading><Banner error={error||actionError} onRetry={reload}/>{loading?<Loading/>:<Table rows={data||[]} columns={[["customer_name","Customer"],["email","Email"],["document_type","Document type"],["document_last_four","Last four"],["submitted_at","Submitted"],["status","Status"],["rejection_reason","Reason"]]} renderActions={actions}/ >}{reject&&<ReasonModal item={read(reject,'customer_name')||'KYC submission'} onClose={()=>setReject(null)} onConfirm={(reason)=>act(reject,'REJECTED',reason)}/>}</>;}
+function AdminKyc() {
+  const [status, setStatus] = useState('PENDING');
+  const { data, loading, error, reload } = useLoad(() => adminApi.kyc({ status }), [status]);
+  const [reject, setReject] = useState(null);
+  const [actionError, setActionError] = useState('');
+
+  const act = async (row, next, reason) => {
+    try {
+      await adminApi.setKycStatus(read(row, 'id'), { status: next, reason });
+      setReject(null);
+      setActionError('');
+      await reload();
+    } catch (requestError) {
+      setActionError(requestError?.response?.data?.detail || 'Could not update verification.');
+    }
+  };
+  const downloadDocument = async (row) => {
+    try {
+      const { data: file } = await adminApi.kycDocument(read(row, 'id'));
+      const url = URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = read(row, 'document_original_name') || `customer-${read(row, 'id')}-kyc-document`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (requestError) {
+      setActionError(requestError?.response?.data?.message || 'Could not download the KYC document.');
+    }
+  };
+  const actions = (row) => (
+    <div className="flex flex-wrap gap-2">
+      {read(row, 'has_document') && <button onClick={() => downloadDocument(row)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-700"><ArrowDownToLine size={14} />Document</button>}
+      {read(row, 'status') === 'PENDING' ? <>
+        <button onClick={() => act(row, 'VERIFIED')} className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700">Verify</button>
+        <button onClick={() => setReject(row)} className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-700">Reject</button>
+      </> : <span className="self-center text-xs text-slate-400">Reviewed</span>}
+    </div>
+  );
+  return <>
+    <Heading title="KYC Verification" subtitle="Private identity documents are available only to authorized administrators.">
+      <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+        <option value="">All statuses</option>{['PENDING', 'VERIFIED', 'REJECTED'].map((value) => <option key={value}>{value}</option>)}
+      </select>
+    </Heading>
+    <Banner error={error || actionError} onRetry={reload} />
+    {loading ? <Loading /> : <Table rows={data || []} columns={[
+      ['customer_name', 'Customer'], ['email', 'Email'], ['document_type', 'Document type'],
+      ['document_last_four', 'Last four'], ['submitted_at', 'Submitted'], ['status', 'Status'],
+      ['rejection_reason', 'Reason'],
+    ]} renderActions={actions} />}
+    {reject && <ReasonModal item={read(reject, 'customer_name') || 'KYC submission'} onClose={() => setReject(null)} onConfirm={(reason) => act(reject, 'REJECTED', reason)} />}
+  </>;
+}
 
 function AdminSupport(){const[status,setStatus]=useState('');const{data,loading,error,reload}=useLoad(()=>adminApi.support({status}),[status]);const[actionError,setActionError]=useState('');const update=async(row,next)=>{try{await adminApi.setSupportStatus(read(row,'id'),{status:next});setActionError('');await reload();}catch(e){setActionError(e?.response?.data?.detail||'Could not update ticket.');}};return <><Heading title="Complaints & Support" subtitle="Review customer support requests and update their workflow status."><select value={status} onChange={e=>setStatus(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"><option value="">All statuses</option>{['OPEN','IN_PROGRESS','RESOLVED','CLOSED'].map(s=><option key={s}>{s}</option>)}</select></Heading><Banner error={error||actionError} onRetry={reload}/>{loading?<Loading/>:<Table rows={data||[]} columns={[["id","Ticket"],["customer_name","Customer"],["email","Email"],["subject","Subject"],["message","Description"],["created_at","Created"],["status","Status"]]} renderActions={row=><select value={read(row,'status')} onChange={e=>update(row,e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">{['OPEN','IN_PROGRESS','RESOLVED','CLOSED'].map(s=><option key={s}>{s}</option>)}</select>}/>}</>;}
 
@@ -188,4 +281,4 @@ function AdminVendorManagement({ statusFilter }) {
   </>;
 }
 
-export default function AdminWorkspace(){const path=useLocation().pathname;const role=path.endsWith('/vendors')?'vendors':path.endsWith('/drivers')?'drivers':path.endsWith('/customers')?'customers':path.endsWith('/fleet-managers')?'fleet_manager':'';const titles={vendors:'Vendor Management',drivers:'Driver Management',customers:'Customer Management',fleet_manager:'Fleet Manager Management'};if(path.endsWith('/dashboard'))return <AdminDashboardPage/>;if(path.startsWith('/admin/vendors')){const segment=path.split('/')[3];const filters={pending:'PENDING',approved:'APPROVED',rejected:'REJECTED'};const filter=filters[segment]||'';return <AdminVendorManagement key={filter} statusFilter={filter}/>;}if(role)return <AdminUserManagement role={role} title={titles[role]}/>;if(path.endsWith('/vehicles'))return <AdminVehicles/>;if(path.endsWith('/bookings'))return <AdminBookings/>;if(path.endsWith('/payments'))return <AdminPayments/>;if(path.endsWith('/kyc'))return <AdminKyc/>;if(path.endsWith('/reports'))return <AdminReports/>;if(path.endsWith('/support'))return <AdminSupport/>;if(path.endsWith('/notifications'))return <AdminNotifications/>;if(path.endsWith('/settings'))return <AdminSettings/>;return <AdminDashboardPage/>;}
+export default function AdminWorkspace(){const path=useLocation().pathname;const role=path.endsWith('/vendors')?'vendors':path.endsWith('/drivers')?'drivers':path.endsWith('/customers')?'customers':path.endsWith('/fleet-managers')?'fleet_manager':'';const titles={vendors:'Vendor Management',drivers:'Driver Management',customers:'Customer Management',fleet_manager:'Fleet Manager Management'};if(path.endsWith('/dashboard'))return <><AdminDashboardPage/><PendingVendorRequests/></>;if(path.startsWith('/admin/vendors')){const segment=path.split('/')[3];const filters={pending:'PENDING',approved:'APPROVED',rejected:'REJECTED'};const filter=filters[segment]||'';return <AdminVendorManagement key={filter} statusFilter={filter}/>;}if(role)return <AdminUserManagement role={role} title={titles[role]}/>;if(path.endsWith('/vehicles'))return <AdminVehicles/>;if(path.endsWith('/bookings'))return <AdminBookings/>;if(path.endsWith('/payments'))return <AdminPayments/>;if(path.endsWith('/kyc'))return <AdminKyc/>;if(path.endsWith('/reports'))return <AdminReports/>;if(path.endsWith('/support'))return <AdminSupport/>;if(path.endsWith('/notifications'))return <AdminNotifications/>;if(path.endsWith('/settings'))return <AdminSettings/>;return <><AdminDashboardPage/><PendingVendorRequests/></>;}
