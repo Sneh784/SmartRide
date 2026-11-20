@@ -4,15 +4,19 @@ import { AuthProvider } from './context/AuthContext';
 import Booking from './pages/Booking';
 import BookingSuccess from './pages/BookingSuccess';
 import BrowseVehicles from './pages/BrowseVehicles';
-import DriverDashboard from './pages/DriverDashboard';
+import DriverForm from './pages/DriverForm';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import VehicleDetails from './pages/VehicleDetails';
-import VendorDashboard from './pages/VendorDashboard';
+import VendorForm from './pages/VendorForm';
 import VendorRegister from './pages/VendorRegister';
 import VendorApplicationSubmitted from './pages/VendorApplicationSubmitted';
 import VendorLogin from './pages/VendorLogin';
+import VendorLayout from './components/vendor/VendorLayout';
+import VendorVehicles from './pages/vendor/VendorVehicles';
+import VendorVehicleForm from './pages/vendor/VendorVehicleForm';
+import { VendorBookings, VendorDocuments, VendorNotifications, VendorPayments, VendorUnavailablePage } from './pages/vendor/VendorDataPages';
 import RequireVendor from './routes/RequireVendor';
 import CustomerLayout from './components/customer/CustomerLayout';
 import RequireCustomer from './routes/RequireCustomer';
@@ -58,10 +62,30 @@ function App() {
               </Route>
             </Route>
             <Route element={<RequireVendor />}>
-              <Route path="/vendor/dashboard" element={<VendorDashboard />} />
+              <Route path="/vendor" element={<VendorLayout />}>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<VendorForm />} />
+                <Route path="vehicles" element={<VendorVehicles />} />
+                <Route path="vehicles/add" element={<VendorVehicleForm />} />
+                <Route path="vehicles/edit/:id" element={<VendorVehicleForm />} />
+                <Route path="vehicle-approval" element={<VendorVehicles approvalsOnly />} />
+                <Route path="bookings/requests" element={<VendorBookings mode="requests" />} />
+                <Route path="bookings/confirmed" element={<VendorBookings mode="confirmed" />} />
+                <Route path="active-rentals" element={<VendorBookings mode="active" />} />
+                <Route path="booking-history" element={<VendorBookings mode="history" />} />
+                <Route path="earnings" element={<VendorPayments earnings />} />
+                <Route path="payments" element={<VendorPayments />} />
+                <Route path="payout-history" element={<VendorUnavailablePage />} />
+                <Route path="reviews" element={<VendorUnavailablePage />} />
+                <Route path="documents" element={<VendorDocuments />} />
+                <Route path="notifications" element={<VendorNotifications />} />
+                <Route path="profile" element={<VendorUnavailablePage />} />
+                <Route path="settings" element={<VendorUnavailablePage />} />
+                <Route path="support" element={<VendorUnavailablePage />} />
+              </Route>
               <Route path="/vendor-dashboard" element={<Navigate to="/vendor/dashboard" replace />} />
             </Route>
-            <Route path="/driver-dashboard" element={<DriverDashboard />} />
+            <Route path="/driver-dashboard" element={<DriverForm />} />
             <Route path="/admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
             <Route element={<RequireAdmin />}>
               <Route path="/admin" element={<AdminLayout />}>

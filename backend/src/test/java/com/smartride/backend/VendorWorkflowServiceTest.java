@@ -115,6 +115,46 @@ class VendorWorkflowServiceTest {
     }
 
     @Test
+    void rejectionRequiresReasonAndDisablesVendorLogin() {
+        User admin = user(null, true, RoleName.ADMIN);
+        User vendor = user("PENDING", false, RoleName.VENDOR);
+        VendorApplication application = new VendorApplication();
+        application.setUser(vendor);
+        application.setStatus("PENDING");
+        when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
+        when(users.findByEmail("admin@example.com")).thenReturn(Optional.of(admin));
+
+        ResponseStatusException missingReason = assertThrows(ResponseStatusException.class,
+                () -> service.review("admin@example.com", 7L, "REJECTED", "   "));
+        assertEquals(400, missingReason.getStatusCode().value());
+
+        service.review("admin@example.com", 7L, "REJECTED", "Missing business registration proof");
+
+        assertEquals("REJECTED", application.getStatus());
+        assertEquals("REJECTED", vendor.getApprovalStatus());
+        assertEquals("Missing business registration proof", vendor.getApprovalReason());
+        assertEquals("Missing business registration proof", application.getRejectionReason());
+        assertTrue(!vendor.isActive());
+    }
+
+    @Test
+    void onlyApprovedVendorCanBeSuspended() {
+        User admin = user(null, true, RoleName.ADMIN);
+        User vendor = user("PENDING", false, RoleName.VENDOR);
+        VendorApplication application = new VendorApplication();
+        application.setUser(vendor);
+        application.setStatus("PENDING");
+        when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
+        when(users.findByEmail("admin@example.com")).thenReturn(Optional.of(admin));
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.review("admin@example.com", 7L, "SUSPENDED", null));
+
+        assertEquals(409, exception.getStatusCode().value());
+        assertEquals("PENDING", application.getStatus());
+    }
+
+    @Test
     void vendorCannotApproveTheirOwnApplication() {
         User vendor = user("PENDING", false, RoleName.VENDOR);
         VendorApplication application = new VendorApplication();

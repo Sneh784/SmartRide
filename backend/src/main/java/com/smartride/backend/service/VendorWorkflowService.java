@@ -13,9 +13,6 @@ import com.smartride.backend.repository.UserRepository;
 import com.smartride.backend.repository.VendorApplicationRepository;
 import com.smartride.backend.repository.VendorDocumentRepository;
 import com.smartride.backend.security.JwtService;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -195,11 +192,87 @@ public class VendorWorkflowService {
         }
         LocalDateTime fromTime = from == null ? null : from.atStartOfDay();
         LocalDateTime toTime = to == null ? null : to.plusDays(1).atStartOfDay();
-        Page<VendorApplication> results = applications.search(normalized, search == null ? "" : search.trim(),
-                fromTime, toTime, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "submittedAt")));
-        List<Map<String, Object>> items = results.getContent().stream().map(this::applicationSummary).toList();
-        return Map.of("items", items, "page", results.getNumber(), "size", results.getSize(),
-                "totalElements", results.getTotalElements(), "totalPages", results.getTotalPages());
+        String normalizedSearch = search == null ? "" : search.trim();
+
+        StringBuilder countSql = new StringBuilder("""
+                SELECT COUNT(*)
+                FROM vendor_applications application
+                JOIN users vendor ON vendor.id = application.user_id
+                WHERE 1 = 1
+                """);
+        StringBuilder itemsSql = new StringBuilder("""
+                SELECT application.id, application.application_number, vendor.full_name,
+                       vendor.email, vendor.phone, application.business_name, application.city,
+                       application.submitted_at, application.status
+                FROM vendor_applications application
+                JOIN users vendor ON vendor.id = application.user_id
+                WHERE 1 = 1
+                """);
+        List<Object> countArgs = new ArrayList<>();
+        List<Object> itemsArgs = new ArrayList<>();
+
+        if (!normalized.isEmpty()) {
+            countSql.append(" AND application.status = ?");
+            itemsSql.append(" AND application.status = ?");
+            countArgs.add(normalized);
+            itemsArgs.add(normalized);
+        }
+        if (!normalizedSearch.isEmpty()) {
+            String searchPattern = "%" + normalizedSearch.toLowerCase(Locale.ROOT) + "%";
+            countSql.append("""
+                     AND (LOWER(vendor.full_name) LIKE ?
+                          OR LOWER(vendor.email) LIKE ?
+                          OR LOWER(application.application_number) LIKE ?)
+                    """);
+            itemsSql.append("""
+                     AND (LOWER(vendor.full_name) LIKE ?
+                          OR LOWER(vendor.email) LIKE ?
+                          OR LOWER(application.application_number) LIKE ?)
+                    """);
+            countArgs.add(searchPattern);
+            countArgs.add(searchPattern);
+            countArgs.add(searchPattern);
+            itemsArgs.add(searchPattern);
+            itemsArgs.add(searchPattern);
+            itemsArgs.add(searchPattern);
+        }
+        if (fromTime != null) {
+            countSql.append(" AND application.submitted_at >= ?");
+            itemsSql.append(" AND application.submitted_at >= ?");
+            countArgs.add(fromTime);
+            itemsArgs.add(fromTime);
+        }
+        if (toTime != null) {
+            countSql.append(" AND application.submitted_at < ?");
+            itemsSql.append(" AND application.submitted_at < ?");
+            countArgs.add(toTime);
+            itemsArgs.add(toTime);
+        }
+
+        itemsSql.append(" ORDER BY application.submitted_at DESC, application.id DESC LIMIT ? OFFSET ?");
+        itemsArgs.add(size);
+        itemsArgs.add((long) page * size);
+
+        Long totalElements = jdbc.queryForObject(countSql.toString(), Long.class,
+                countArgs.toArray());
+        List<Map<String, Object>> items = jdbc.queryForList(itemsSql.toString(),
+                itemsArgs.toArray()).stream().map(row -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("id", row.get("id"));
+                    item.put("applicationNumber", row.get("application_number"));
+                    item.put("fullName", row.get("full_name"));
+                    item.put("email", row.get("email"));
+                    item.put("mobileNumber", row.get("phone"));
+                    item.put("businessName", row.get("business_name"));
+                    item.put("city", row.get("city"));
+                    item.put("submittedAt", row.get("submitted_at"));
+                    item.put("status", row.get("status"));
+                    return item;
+                }).toList();
+        long total = totalElements == null ? 0 : totalElements;
+        int totalPages = (int) ((total + size - 1) / size);
+        return Map.of("items", items, "page", page, "size", size,
+                "totalElements", total, "totalPages", totalPages);
     }
 
     @Transactional(readOnly = true)
@@ -275,19 +348,6 @@ public class VendorWorkflowService {
         if (jdbc.update("UPDATE vendor_notifications SET is_read = TRUE WHERE id = ? AND user_id = ?", id, user.getId()) == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification not found");
         }
-    }
-
-    @Transactional(readOnly = true)
-    public Map<String, Object> dashboard(String email) {
-        User user = requireVendor(email);
-        Map<String, Object> stats = jdbc.queryForMap("""
-                SELECT
-                  (SELECT COUNT(*) FROM vehicles WHERE vendor_id = ?) AS total_vehicles,
-                  (SELECT COUNT(*) FROM vehicles WHERE vendor_id = ? AND UPPER(COALESCE(approval_status, 'PENDING')) = 'APPROVED') AS approved_vehicles,
-                  (SELECT COUNT(*) FROM vehicles WHERE vendor_id = ? AND UPPER(COALESCE(approval_status, 'PENDING')) = 'PENDING') AS pending_vehicles,
-                  (SELECT COUNT(*) FROM bookings b JOIN vehicles v ON v.id = b.vehicle_id WHERE v.vendor_id = ?) AS total_bookings
-                """, user.getId(), user.getId(), user.getId(), user.getId());
-        return stats;
     }
 
     @Transactional(readOnly = true)
