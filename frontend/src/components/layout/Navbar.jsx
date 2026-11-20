@@ -1,37 +1,46 @@
 import { BriefcaseBusiness, CarFront, Menu, X } from 'lucide-react';
 import { useState } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 const navItems = [
   { label: 'Home', to: '/' },
-  { label: 'Browse Vehicles', to: '/vehicles' },
+  { label: 'Browse Vehicles', to: '/#popular-vehicles' },
   { label: 'Categories', to: '/#categories' },
-  { label: 'About Us', to: '/about' },
-  { label: 'Contact', to: '/contact' },
+  { label: 'About Us', to: '/#why-smarride' },
+  { label: 'Contact', to: '/#contact' },
 ];
 
 const registrationItems = [
   { label: 'Become a Vendor', to: '/vendor/register', icon: BriefcaseBusiness },
-  { label: 'Become a Driver', to: '/driver/register', icon: CarFront },
+  { label: 'Driver Portal', to: '/driver-dashboard', icon: CarFront },
 ];
 
 function NavigationLinks({ onNavigate, className = '' }) {
+  const { pathname, hash } = useLocation();
+
   return (
     <nav aria-label="Main navigation" className={className}>
-      {navItems.map((item) => (
-        <NavLink
-          key={item.label}
-          to={item.to}
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            `whitespace-nowrap text-sm font-medium transition-colors ${
+      {navItems.map(({ label, to }) => {
+        const isActive = to === '/'
+          ? pathname === '/' && !hash
+          : to.startsWith('/#')
+            ? pathname === '/' && hash === to.slice(1)
+            : pathname === to;
+
+        return (
+          <Link
+            key={label}
+            to={to}
+            onClick={onNavigate}
+            aria-current={isActive ? 'page' : undefined}
+            className={`whitespace-nowrap text-sm font-medium transition-colors ${
               isActive ? 'text-[#E85D00]' : 'text-slate-600 hover:text-[#E85D00]'
-            }`
-          }
-        >
-          {item.label}
-        </NavLink>
-      ))}
+            }`}
+          >
+            {label}
+          </Link>
+        );
+      })}
     </nav>
   );
 }

@@ -1,4 +1,5 @@
 import { Filter, Search, SlidersHorizontal } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const vehicles = [
   { name: 'Mercedes GLE', price: '₹4,800/day', city: 'Bengaluru', type: 'Car', rating: 4.9 },
@@ -99,7 +100,7 @@ export default function BrowseVehicles() {
                       <p className="text-xs uppercase tracking-[0.2em] text-slate-500">From</p>
                       <p className="text-2xl font-black text-slate-900">{vehicle.price}</p>
                     </div>
-                    <a href="/vehicles/1" className="rounded-full bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white">View details</a>
+                    <Link to="/vehicles/1" className="rounded-full bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white">View details</Link>
                   </div>
                 </div>
               </article>

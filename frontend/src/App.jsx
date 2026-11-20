@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppShell from './components/layout/AppShell';
+import ScrollToTop from './components/layout/ScrollToTop';
 import { AuthProvider } from './context/AuthContext';
 import Booking from './pages/Booking';
 import BookingSuccess from './pages/BookingSuccess';
@@ -26,6 +27,7 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <AppShell>
           <Routes>
             <Route path="/" element={<Home />} />
