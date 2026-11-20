@@ -1,17 +1,14 @@
 import {
-  ArrowRight,
   CalendarRange,
   CarFront,
-  Check,
-  ChevronRight,
   CreditCard,
   MapPin,
   ShieldCheck,
   Star,
-  Truck,
   Users,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 
 const vehicles = [
   {
@@ -98,13 +95,22 @@ const reviews = [
   },
 ];
 
-const footerLinks = {
-  Rent: ['Browse vehicles', 'Self-drive', 'With driver', 'Long-term rentals'],
-  Partners: ['Become a vendor', 'Become a driver', 'Fleet solutions'],
-  Company: ['About us', 'Contact', 'Terms', 'Privacy'],
-};
-
 export default function Home() {
+  const { hash } = useLocation();
+
+  useEffect(() => {
+    if (!hash) return undefined;
+
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(hash.slice(1))?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [hash]);
+
   return (
     <div className="bg-[#f3f5f8] text-slate-900">
       <section className="mx-auto max-w-[1600px] px-4 pb-8 pt-4 sm:px-6 lg:px-8">
@@ -191,15 +197,15 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1280px] px-4 py-10 sm:px-6 lg:px-8">
+      <section id="popular-vehicles" className="scroll-mt-24 mx-auto max-w-[1280px] px-4 py-10 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-4xl font-black tracking-[-0.05em] text-slate-900">Popular vehicles</h2>
             <p className="mt-2 text-lg text-slate-600">Top-rated rentals near you this week.</p>
           </div>
-          <button className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
+          <Link to="/vehicles" className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
             View all
-          </button>
+          </Link>
         </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
@@ -252,13 +258,13 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1280px] px-4 py-10 sm:px-6 lg:px-8">
+      <section id="categories" className="scroll-mt-24 mx-auto max-w-[1280px] px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-7">
           <h2 className="text-4xl font-black tracking-[-0.05em] text-slate-900">Browse by category</h2>
         </div>
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {categories.map(({ name, count, icon: Icon }, index) => (
+          {categories.map(({ name, count, icon: Icon }) => (
             <div key={name} className="rounded-[24px] border border-slate-200 bg-white p-5 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff5ee] text-[#ff6b00]">
                 <Icon className="h-6 w-6" />
@@ -270,7 +276,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1280px] px-4 py-10 sm:px-6 lg:px-8">
+      <section id="why-smarride" className="scroll-mt-24 mx-auto max-w-[1280px] px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h2 className="text-4xl font-black tracking-[-0.05em] text-slate-900">Why SmartRide</h2>
         </div>
@@ -304,7 +310,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1280px] px-4 pb-10 pt-6 sm:px-6 lg:px-8">
+      <section id="contact" className="scroll-mt-24 mx-auto max-w-[1280px] px-4 pb-10 pt-6 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-5 rounded-[28px] bg-[#ff6b00] px-8 py-8 text-white shadow-[0_25px_60px_rgba(255,107,0,0.25)] lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-4xl font-black tracking-[-0.05em] text-white">Own vehicles or love driving?</h2>
@@ -312,52 +318,16 @@ export default function Home() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <button className="inline-flex items-center justify-center rounded-xl border border-white/80 bg-white px-6 py-3 text-base font-semibold text-[#ff6b00] transition hover:bg-orange-50">
+            <Link to="/vendor/register" className="inline-flex items-center justify-center rounded-xl border border-white/80 bg-white px-6 py-3 text-base font-semibold text-[#ff6b00] transition hover:bg-orange-50">
               Become a vendor
-            </button>
-            <button className="inline-flex items-center justify-center rounded-xl border border-white/80 bg-transparent px-6 py-3 text-base font-semibold text-white transition hover:bg-white/10">
+            </Link>
+            <Link to="/driver/register" className="inline-flex items-center justify-center rounded-xl border border-white/80 bg-transparent px-6 py-3 text-base font-semibold text-white transition hover:bg-white/10">
               Become a driver
-            </button>
+            </Link>
           </div>
         </div>
       </section>
 
-      <footer className="mt-4 bg-[#0d1015] text-white">
-        <div className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6 lg:px-8">
-          <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr_1fr_1fr]">
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ff6b00] text-white">
-                  <CarFront className="h-5 w-5" />
-                </div>
-                <div className="text-2xl font-black tracking-[-0.05em]">
-                  Smart<span className="text-[#ff8c42]">Ride</span>
-                </div>
-              </div>
-              <p className="mt-4 max-w-xs text-base text-slate-300">
-                All-in-one vehicle rental platform for customers, vendors, drivers and fleets.
-              </p>
-            </div>
-
-            {Object.entries(footerLinks).map(([heading, links]) => (
-              <div key={heading}>
-                <h3 className="text-xl font-bold text-white">{heading}</h3>
-                <ul className="mt-4 space-y-3 text-base text-slate-300">
-                  {links.map((link) => (
-                    <li key={link} className="transition hover:text-white">
-                      {link}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-10 border-t border-white/10 pt-6 text-center text-sm text-slate-400">
-            © 2026 SmartRide Technologies. All rights reserved.
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

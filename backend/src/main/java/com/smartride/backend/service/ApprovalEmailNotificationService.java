@@ -5,6 +5,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.PreparedStatementCreator;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.mail.MailException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -33,22 +36,24 @@ public class ApprovalEmailNotificationService {
     @Transactional
     public void queue(User user, String accountType) {
         String type = normalizeType(accountType);
-        Long notificationId = jdbc.queryForObject("""
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        int inserted = jdbc.update((PreparedStatementCreator) connection -> {
+            var statement = connection.prepareStatement("""
                 INSERT INTO approval_email_notifications
                     (user_id, account_type, recipient_email, recipient_name, status)
                 VALUES (?, ?, ?, ?, 'PENDING')
-                ON CONFLICT (user_id, account_type) DO UPDATE SET
-                    recipient_email = EXCLUDED.recipient_email,
-                    recipient_name = EXCLUDED.recipient_name,
-                    status = 'PENDING',
-                    attempt_count = 0,
-                    last_attempt_at = NULL,
-                    sent_at = NULL,
-                    last_error = NULL,
-                    updated_at = CURRENT_TIMESTAMP
-                RETURNING id
-                """, Long.class, user.getId(), type, user.getEmail(), user.getFullName());
-        events.publishEvent(new ApprovalEmailQueued(notificationId));
+                """, new String[] {"id"});
+            statement.setLong(1, user.getId());
+            statement.setString(2, type);
+            statement.setString(3, user.getEmail());
+            statement.setString(4, user.getFullName());
+            return statement;
+        }, keyHolder);
+        Number generatedId = keyHolder.getKey();
+        if (inserted != 1 || generatedId == null) {
+            throw new IllegalStateException("Could not create approval email notification");
+        }
+        events.publishEvent(new ApprovalEmailQueued(generatedId.longValue()));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

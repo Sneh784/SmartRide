@@ -13,11 +13,21 @@ export default function AppShell({ children }) {
     || pathname.startsWith('/vendor/documents') || pathname.startsWith('/vendor/notifications')
     || pathname.startsWith('/vendor/profile') || pathname.startsWith('/vendor/settings')
     || pathname.startsWith('/vendor/support')) return children;
+  const hideFooter = [
+    '/login',
+    '/register',
+    '/vendor/login',
+    '/vendor/register',
+    '/driver/login',
+    '/admin/login',
+    '/driver/register',
+  ].includes(pathname);
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <Navbar />
       <main>{children}</main>
-      <Footer />
+      {!hideFooter && <Footer />}
     </div>
   );
 }

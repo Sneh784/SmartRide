@@ -11,12 +11,12 @@ const links = [
   { label: 'My Bookings', to: '/customer/bookings', icon: Clock3 },
   { label: 'Active Rentals', to: '/customer/active-rentals', icon: CarFront },
   { label: 'Booking History', to: '/customer/booking-history', icon: Clock3 },
-  { label: 'Wishlist', to: '/customer/wishlist', icon: Heart },
+  // { label: 'Wishlist', to: '/customer/wishlist', icon: Heart },
   { label: 'Payments', to: '/customer/payments', icon: CreditCard },
   { label: 'KYC Verification', to: '/customer/kyc', icon: ShieldCheck },
-  { label: 'Notifications', to: '/customer/notifications', icon: Bell },
+  // { label: 'Notifications', to: '/customer/notifications', icon: Bell },
   { label: 'My Profile', to: '/customer/profile', icon: UserRound },
-  { label: 'Support', to: '/customer/support', icon: CircleHelp },
+  // { label: 'Support', to: '/customer/support', icon: CircleHelp },
 ];
 
 export default function CustomerSidebar({ collapsed, drawerOpen, onClose, onToggleCollapse }) {

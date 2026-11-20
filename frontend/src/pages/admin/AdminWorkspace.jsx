@@ -75,7 +75,61 @@ function AdminBookings(){const[search,setSearch]=useState('');const[status,setSt
 
 function AdminPayments(){const[search,setSearch]=useState('');const[status,setStatus]=useState('');const{data,loading,error,reload}=useLoad(()=>adminApi.payments({search,status}),[search,status]);return <><Heading title="Payment Management" subtitle="Read-only payment records. Successful status comes from the recorded payment verification, never an admin toggle."><SearchFilter search={search} setSearch={setSearch} status={status} setStatus={setStatus} statuses={['PENDING','SUCCESS','SUCCEEDED','COMPLETED','FAILED','REFUNDED']}/></Heading><Banner error={error} onRetry={reload}/>{loading?<Loading/>:<Table rows={data||[]} columns={[["transaction_id","Transaction"],["booking_id","Booking"],["customer_name","Customer"],["customer_email","Email"],["amount","Amount"],["currency","Currency"],["provider","Method"],["payment_id","Payment reference"],["status","Status"],["payment_date","Date"]]}/>}</>;}
 
-function AdminKyc(){const[status,setStatus]=useState('PENDING');const{data,loading,error,reload}=useLoad(()=>adminApi.kyc({status}),[status]);const[reject,setReject]=useState(null);const[actionError,setActionError]=useState('');const act=async(row,next,reason)=>{try{await adminApi.setKycStatus(read(row,'id'),{status:next,reason});setReject(null);setActionError('');await reload();}catch(e){setActionError(e?.response?.data?.detail||'Could not update verification.');}};const actions=(row)=>{if(read(row,'status')!=='PENDING')return <span className="text-xs text-slate-400">Reviewed</span>;return <div className="flex gap-2"><button onClick={()=>act(row,'VERIFIED')} className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700">Verify</button><button onClick={()=>setReject(row)} className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-700">Reject</button></div>;};return <><Heading title="KYC Verification" subtitle="Only masked document references are stored by the customer portal; no private document URL is exposed."><select value={status} onChange={e=>setStatus(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"><option value="">All statuses</option>{['PENDING','VERIFIED','REJECTED'].map(s=><option key={s}>{s}</option>)}</select></Heading><Banner error={error||actionError} onRetry={reload}/>{loading?<Loading/>:<Table rows={data||[]} columns={[["customer_name","Customer"],["email","Email"],["document_type","Document type"],["document_last_four","Last four"],["submitted_at","Submitted"],["status","Status"],["rejection_reason","Reason"]]} renderActions={actions}/ >}{reject&&<ReasonModal item={read(reject,'customer_name')||'KYC submission'} onClose={()=>setReject(null)} onConfirm={(reason)=>act(reject,'REJECTED',reason)}/>}</>;}
+function AdminKyc() {
+  const [status, setStatus] = useState('PENDING');
+  const { data, loading, error, reload } = useLoad(() => adminApi.kyc({ status }), [status]);
+  const [reject, setReject] = useState(null);
+  const [actionError, setActionError] = useState('');
+
+  const act = async (row, next, reason) => {
+    try {
+      await adminApi.setKycStatus(read(row, 'id'), { status: next, reason });
+      setReject(null);
+      setActionError('');
+      await reload();
+    } catch (requestError) {
+      setActionError(requestError?.response?.data?.detail || 'Could not update verification.');
+    }
+  };
+  const downloadDocument = async (row) => {
+    try {
+      const { data: file } = await adminApi.kycDocument(read(row, 'id'));
+      const url = URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = read(row, 'document_original_name') || `customer-${read(row, 'id')}-kyc-document`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (requestError) {
+      setActionError(requestError?.response?.data?.message || 'Could not download the KYC document.');
+    }
+  };
+  const actions = (row) => (
+    <div className="flex flex-wrap gap-2">
+      {read(row, 'has_document') && <button onClick={() => downloadDocument(row)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-700"><ArrowDownToLine size={14} />Document</button>}
+      {read(row, 'status') === 'PENDING' ? <>
+        <button onClick={() => act(row, 'VERIFIED')} className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700">Verify</button>
+        <button onClick={() => setReject(row)} className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-700">Reject</button>
+      </> : <span className="self-center text-xs text-slate-400">Reviewed</span>}
+    </div>
+  );
+  return <>
+    <Heading title="KYC Verification" subtitle="Private identity documents are available only to authorized administrators.">
+      <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+        <option value="">All statuses</option>{['PENDING', 'VERIFIED', 'REJECTED'].map((value) => <option key={value}>{value}</option>)}
+      </select>
+    </Heading>
+    <Banner error={error || actionError} onRetry={reload} />
+    {loading ? <Loading /> : <Table rows={data || []} columns={[
+      ['customer_name', 'Customer'], ['email', 'Email'], ['document_type', 'Document type'],
+      ['document_last_four', 'Last four'], ['submitted_at', 'Submitted'], ['status', 'Status'],
+      ['rejection_reason', 'Reason'],
+    ]} renderActions={actions} />}
+    {reject && <ReasonModal item={read(reject, 'customer_name') || 'KYC submission'} onClose={() => setReject(null)} onConfirm={(reason) => act(reject, 'REJECTED', reason)} />}
+  </>;
+}
 
 function AdminSupport(){const[status,setStatus]=useState('');const{data,loading,error,reload}=useLoad(()=>adminApi.support({status}),[status]);const[actionError,setActionError]=useState('');const update=async(row,next)=>{try{await adminApi.setSupportStatus(read(row,'id'),{status:next});setActionError('');await reload();}catch(e){setActionError(e?.response?.data?.detail||'Could not update ticket.');}};return <><Heading title="Complaints & Support" subtitle="Review customer support requests and update their workflow status."><select value={status} onChange={e=>setStatus(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"><option value="">All statuses</option>{['OPEN','IN_PROGRESS','RESOLVED','CLOSED'].map(s=><option key={s}>{s}</option>)}</select></Heading><Banner error={error||actionError} onRetry={reload}/>{loading?<Loading/>:<Table rows={data||[]} columns={[["id","Ticket"],["customer_name","Customer"],["email","Email"],["subject","Subject"],["message","Description"],["created_at","Created"],["status","Status"]]} renderActions={row=><select value={read(row,'status')} onChange={e=>update(row,e.target.value)} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">{['OPEN','IN_PROGRESS','RESOLVED','CLOSED'].map(s=><option key={s}>{s}</option>)}</select>}/>}</>;}
 

@@ -3,7 +3,9 @@ package com.smartride.backend.repository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Repository
@@ -155,12 +157,14 @@ public class AdminPortalRepository {
     public List<Map<String, Object>> kyc(String status) {
         return jdbc.queryForList("""
                 SELECT k.customer_id AS id, k.document_type, k.document_last_four,
+                       k.document_original_name,
+                       CASE WHEN k.document_storage_key IS NULL THEN FALSE ELSE TRUE END AS has_document,
                        k.status, k.rejection_reason, k.submitted_at,
                        u.full_name AS customer_name, u.email
                 FROM customer_kyc k JOIN users u ON u.id = k.customer_id
                 WHERE (? = '' OR UPPER(k.status) = UPPER(?))
                 ORDER BY k.submitted_at DESC
-                """, status, status);
+                """, status, status).stream().map(AdminPortalRepository::normalized).toList();
     }
 
     public int setKycStatus(long customerId, String status, String reason) {
@@ -234,5 +238,11 @@ public class AdminPortalRepository {
                 INSERT INTO admin_notifications (title, message, event_type, entity_type, entity_id)
                 VALUES (?, ?, ?, ?, ?)
                 """, title, message, eventType, entityType, entityId);
+    }
+
+    private static Map<String, Object> normalized(Map<String, Object> row) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        row.forEach((key, value) -> result.put(key.toLowerCase(Locale.ROOT), value));
+        return result;
     }
 }

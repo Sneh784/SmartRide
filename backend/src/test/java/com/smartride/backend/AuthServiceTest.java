@@ -39,7 +39,7 @@ class AuthServiceTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> service.login(loginRequest()));
 
-        assertEquals("Driver account is not approved", exception.getMessage());
+        assertEquals("Your driver application is pending administrator approval", exception.getMessage());
     }
 
     @Test

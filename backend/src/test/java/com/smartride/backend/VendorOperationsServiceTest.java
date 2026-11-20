@@ -55,28 +55,25 @@ class VendorOperationsServiceTest {
     @Test
     void vehicleListingIsScopedToAuthenticatedVendor() {
         when(users.findByEmail("vendor@example.com")).thenReturn(Optional.of(vendor("APPROVED", true)));
-        when(jdbc.queryForObject(contains("FROM vendor_profiles"), eq(Long.class), eq(29L))).thenReturn(39L);
         when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
 
         service.vehicles("vendor@example.com", "", "");
 
         ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
         verify(jdbc).queryForList(contains("FROM vehicles WHERE vendor_id = ?"), args.capture());
-        assertEquals(39L, args.getValue()[0]);
+        assertEquals(29L, args.getValue()[0]);
     }
 
     @Test
     void newlySubmittedVehicleIsPendingAndUnavailable() {
         when(users.findByEmail("vendor@example.com")).thenReturn(Optional.of(vendor("APPROVED", true)));
-        when(jdbc.queryForObject(contains("FROM vendor_profiles"), eq(Long.class), eq(29L))).thenReturn(39L);
-        when(jdbc.queryForObject(contains("FROM vehicle_categories"), eq(Long.class), eq("Cars"))).thenReturn(1L);
         when(jdbc.update(any(PreparedStatementCreator.class), any(KeyHolder.class))).thenAnswer(invocation -> {
             KeyHolder keyHolder = invocation.getArgument(1);
             keyHolder.getKeyList().add(Map.of("ID", 41L));
             return 1;
         });
         when(jdbc.update(contains("INSERT INTO vendor_notifications"), any(Object[].class))).thenReturn(1);
-        when(jdbc.queryForMap(contains("FROM vehicles WHERE id = ?"), eq(41L), eq(39L)))
+        when(jdbc.queryForMap(contains("FROM vehicles WHERE id = ?"), eq(41L), eq(29L)))
                 .thenReturn(Map.of("id", 41L, "approval_status", "PENDING", "availability_status", "UNAVAILABLE"));
 
         Map<String, Object> created = service.createVehicle("vendor@example.com", new VendorVehicleRequest(
@@ -91,8 +88,7 @@ class VendorOperationsServiceTest {
     @Test
     void bookingAcceptanceChecksAvailabilityAndUsesVendorOwnership() {
         when(users.findByEmail("vendor@example.com")).thenReturn(Optional.of(vendor("APPROVED", true)));
-        when(jdbc.queryForObject(contains("FROM vendor_profiles"), eq(Long.class), eq(29L))).thenReturn(39L);
-        when(jdbc.queryForMap(contains("FOR UPDATE OF b, v"), eq(7L), eq(39L)))
+        when(jdbc.queryForMap(contains("FOR UPDATE OF b, v"), eq(7L), eq(29L)))
                 .thenReturn(Map.of("status", "PENDING", "pickup_date", Timestamp.valueOf(LocalDateTime.now().plusDays(1)),
                         "return_date", Timestamp.valueOf(LocalDateTime.now().plusDays(2)), "customer_id", 9L,
                         "vehicle_id", 41L, "vehicle_name", "Test vehicle", "vehicle_approval", "APPROVED"));
@@ -104,14 +100,13 @@ class VendorOperationsServiceTest {
         Map<String, Object> result = service.reviewBooking("vendor@example.com", 7L, "CONFIRMED", null);
 
         assertEquals("CONFIRMED", result.get("status"));
-        verify(jdbc).queryForMap(contains("WHERE b.id = ? AND v.vendor_id = ?"), eq(7L), eq(39L));
+        verify(jdbc).queryForMap(contains("WHERE b.id = ? AND v.vendor_id = ?"), eq(7L), eq(29L));
     }
 
     @Test
     void bookingAcceptanceRejectsOverlappingConfirmedRental() {
         when(users.findByEmail("vendor@example.com")).thenReturn(Optional.of(vendor("APPROVED", true)));
-        when(jdbc.queryForObject(contains("FROM vendor_profiles"), eq(Long.class), eq(29L))).thenReturn(39L);
-        when(jdbc.queryForMap(contains("FOR UPDATE OF b, v"), eq(7L), eq(39L)))
+        when(jdbc.queryForMap(contains("FOR UPDATE OF b, v"), eq(7L), eq(29L)))
                 .thenReturn(Map.of("status", "PENDING", "pickup_date", Timestamp.valueOf(LocalDateTime.now().plusDays(1)),
                         "return_date", Timestamp.valueOf(LocalDateTime.now().plusDays(2)), "customer_id", 9L,
                         "vehicle_id", 41L, "vehicle_name", "Test vehicle", "vehicle_approval", "APPROVED"));
