@@ -68,9 +68,17 @@ public class AdminVendorController {
     }
 
     @PutMapping("/{id}/approve")
-    public ResponseEntity<Void> approve(Authentication authentication, @PathVariable long id) {
+    public ResponseEntity<Map<String, Object>> approve(Authentication authentication, @PathVariable long id) {
         service.review(authentication.getName(), id, "APPROVED", null);
-        return ResponseEntity.noContent().build();
+        Map<String, Object> response = new java.util.LinkedHashMap<>();
+        response.put("status", "APPROVED");
+        response.putAll(service.approvalEmailStatus(id));
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{id}/approval-email/retry")
+    public ResponseEntity<Map<String, Object>> retryApprovalEmail(@PathVariable long id) {
+        return ResponseEntity.ok(service.retryApprovalEmail(id));
     }
 
     @PutMapping("/{id}/reject")

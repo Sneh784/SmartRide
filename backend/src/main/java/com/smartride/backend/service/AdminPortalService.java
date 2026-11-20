@@ -25,12 +25,14 @@ public class AdminPortalService {
     private final AdminPortalRepository repository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ApprovalEmailNotificationService approvalEmails;
 
     public AdminPortalService(AdminPortalRepository repository, UserRepository userRepository,
-                              PasswordEncoder passwordEncoder) {
+                              PasswordEncoder passwordEncoder, ApprovalEmailNotificationService approvalEmails) {
         this.repository = repository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.approvalEmails = approvalEmails;
     }
 
     public Map<String, Object> dashboard(String period) {
@@ -77,10 +79,38 @@ public class AdminPortalService {
         if ("REJECTED".equals(status) && (reason == null || reason.isBlank())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A rejection reason is required");
         }
-        if (repository.setUserStatus(userId, normalizedRole, status, reason) == 0) {
+        if ("DRIVER".equals(normalizedRole) && "APPROVED".equals(status)) {
+            User admin = requireAdmin(actor);
+            if (repository.approveDriver(userId, admin.getId()) == 0) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Only pending driver accounts can be approved");
+            }
+            User driver = userRepository.findById(userId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found"));
+            approvalEmails.queue(driver, "DRIVER");
+        } else if (repository.setUserStatus(userId, normalizedRole, status, reason) == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Account not found");
         }
         repository.audit(actor, status, normalizedRole, userId, reason);
+    }
+
+    public Map<String, Object> approvalEmailStatus(long userId, String role) {
+        return approvalEmails.status(userId, role);
+    }
+
+    @Transactional
+    public Map<String, Object> retryApprovalEmail(String actor, long userId, String role) {
+        requireAdmin(actor);
+        String normalizedRole = role.toUpperCase(Locale.ROOT);
+        if (!"DRIVER".equals(normalizedRole)) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        User driver = userRepository.findById(userId)
+                .filter(user -> user.getRole() != null && user.getRole().name().equals(normalizedRole))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Driver account not found"));
+        if (!driver.isActive() || !"APPROVED".equalsIgnoreCase(driver.getApprovalStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Only active, approved drivers can receive an approval email");
+        }
+        return approvalEmails.retry(userId, normalizedRole);
     }
 
     public List<Map<String, Object>> vehicles(String status, String search) {

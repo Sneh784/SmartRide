@@ -44,7 +44,7 @@ public class VendorOperationsService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> dashboard(String email) {
-        long vendorId = requireApprovedVendor(email).getId();
+        long vendorId = requireApprovedVendorId(email);
         Map<String, Object> result = normalized(jdbc.queryForMap("""
                 SELECT
                   (SELECT COUNT(*) FROM vehicles WHERE vendor_id = ?) AS total_vehicles,
@@ -90,12 +90,12 @@ public class VendorOperationsService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> vehicles(String email, String status, String search) {
-        return vehicles(requireApprovedVendor(email).getId(), status, search, 100);
+        return vehicles(requireApprovedVendorId(email), status, search, 100);
     }
 
     @Transactional(readOnly = true)
     public Map<String, Object> vehicle(String email, long vehicleId) {
-        User vendor = requireApprovedVendor(email);
+        long vendorId = requireApprovedVendorId(email);
         try {
             return normalized(jdbc.queryForMap("""
                     SELECT id, category, subcategory, title, brand, model, "year", registration_number, color,
@@ -104,7 +104,7 @@ public class VendorOperationsService {
                            city, location, availability_status, approval_status,
                            approval_reason, description, created_at
                     FROM vehicles WHERE id = ? AND vendor_id = ?
-                    """, vehicleId, vendor.getId()));
+                    """, vehicleId, vendorId));
         } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vehicle not found");
         }
@@ -112,24 +112,29 @@ public class VendorOperationsService {
 
     @Transactional
     public Map<String, Object> createVehicle(String email, VendorVehicleRequest request) {
-        long vendorId = requireApprovedVendor(email).getId();
+        User vendor = requireApprovedVendor(email);
+        long vendorId = vendorProfileId(vendor);
+        long categoryId = categoryId(request.category());
         String insert = """
                 INSERT INTO vehicles (
-                    vendor_id, category, subcategory, title, brand, model, "year", registration_number, color,
-                    fuel_type, transmission, seating_capacity, mileage, features, daily_rate, hourly_rate,
-                    security_deposit, km_limit_per_day, extra_km_charge, with_driver_rate,
-                    city, location, availability_status, approval_status, description
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'UNAVAILABLE', 'PENDING', ?)
+                    vendor_id, category_id, name, category, subcategory, title, brand, model, "year",
+                    registration_number, color, fuel_type, transmission, seating_capacity, mileage, features,
+                    daily_rental_price, daily_rate, hourly_rental_price, hourly_rate, security_deposit,
+                    km_limit_per_day, extra_km_charge, driver_charge_daily, with_driver_rate,
+                    city, location, pickup_location, availability_status, approval_status, description
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'UNAVAILABLE', 'PENDING', ?)
                 """;
         KeyHolder keyHolder = new GeneratedKeyHolder();
         Object[] values = {
-                vendorId, request.category().trim(), blankToNull(request.subcategory()), request.title().trim(),
-                request.brand().trim(), request.model().trim(), request.year(),
+                vendorId, categoryId, request.title().trim(), request.category().trim(),
+                blankToNull(request.subcategory()), request.title().trim(), request.brand().trim(),
+                request.model().trim(), request.year(),
                 blankToNull(request.registrationNumber()), blankToNull(request.color()),
                 blankToNull(request.fuelType()), blankToNull(request.transmission()), request.seatingCapacity(),
-                request.mileage(), blankToNull(request.features()), request.dailyRate(), request.hourlyRate(),
-                request.securityDeposit(), request.kmLimitPerDay(), request.extraKmCharge(),
-                request.withDriverRate(), request.city().trim(), request.location().trim(),
+                request.mileage(), blankToNull(request.features()), request.dailyRate(), request.dailyRate(),
+                request.hourlyRate(), request.hourlyRate(), request.securityDeposit(), request.kmLimitPerDay(),
+                request.extraKmCharge(), request.withDriverRate(), request.withDriverRate(),
+                request.city().trim(), request.location().trim(), request.location().trim(),
                 blankToNull(request.description())
         };
         jdbc.update(connection -> {
@@ -150,29 +155,33 @@ public class VendorOperationsService {
         jdbc.update("""
                 INSERT INTO vendor_notifications (user_id, title, message)
                 VALUES (?, 'Vehicle submitted for review', ?)
-                """, vendorId, request.title().trim() + " has been submitted for admin approval.");
+                """, vendor.getId(), request.title().trim() + " has been submitted for admin approval.");
         return vehicle(email, id);
     }
 
     @Transactional
     public Map<String, Object> updateVehicle(String email, long vehicleId, VendorVehicleRequest request) {
-        long vendorId = requireApprovedVendor(email).getId();
+        long vendorId = requireApprovedVendorId(email);
+        long categoryId = categoryId(request.category());
         int updated = jdbc.update("""
-                UPDATE vehicles SET category = ?, subcategory = ?, title = ?, brand = ?, model = ?, "year" = ?,
-                    registration_number = ?, color = ?, fuel_type = ?, transmission = ?, seating_capacity = ?,
-                    mileage = ?, features = ?, daily_rate = ?, hourly_rate = ?, security_deposit = ?,
-                    km_limit_per_day = ?, extra_km_charge = ?, with_driver_rate = ?,
-                    city = ?, location = ?, description = ?, approval_status = 'PENDING',
+                UPDATE vehicles SET category_id = ?, category = ?, subcategory = ?, name = ?, title = ?,
+                    brand = ?, model = ?, "year" = ?, registration_number = ?, color = ?, fuel_type = ?,
+                    transmission = ?, seating_capacity = ?, mileage = ?, features = ?, daily_rental_price = ?,
+                    daily_rate = ?, hourly_rental_price = ?, hourly_rate = ?, security_deposit = ?,
+                    km_limit_per_day = ?, extra_km_charge = ?, driver_charge_daily = ?, with_driver_rate = ?,
+                    city = ?, location = ?, pickup_location = ?, description = ?, approval_status = 'PENDING',
                     approval_reason = NULL, availability_status = 'UNAVAILABLE'
                 WHERE id = ? AND vendor_id = ?
                   AND UPPER(COALESCE(approval_status, 'PENDING')) IN ('PENDING', 'REJECTED')
-                """, request.category().trim(), blankToNull(request.subcategory()), request.title().trim(),
-                request.brand().trim(), request.model().trim(), request.year(),
+                """, categoryId, request.category().trim(), blankToNull(request.subcategory()),
+                request.title().trim(), request.title().trim(), request.brand().trim(),
+                request.model().trim(), request.year(),
                 blankToNull(request.registrationNumber()), blankToNull(request.color()), blankToNull(request.fuelType()),
                 blankToNull(request.transmission()), request.seatingCapacity(), request.mileage(),
-                blankToNull(request.features()), request.dailyRate(), request.hourlyRate(), request.securityDeposit(),
-                request.kmLimitPerDay(), request.extraKmCharge(), request.withDriverRate(),
-                request.city().trim(), request.location().trim(),
+                blankToNull(request.features()), request.dailyRate(), request.dailyRate(), request.hourlyRate(),
+                request.hourlyRate(), request.securityDeposit(), request.kmLimitPerDay(),
+                request.extraKmCharge(), request.withDriverRate(), request.withDriverRate(),
+                request.city().trim(), request.location().trim(), request.location().trim(),
                 blankToNull(request.description()), vehicleId, vendorId);
         if (updated == 0) {
             if (!ownsVehicle(vendorId, vehicleId)) {
@@ -186,7 +195,7 @@ public class VendorOperationsService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> vehicleMedia(String email, long vehicleId) {
-        long vendorId = requireApprovedVendor(email).getId();
+        long vendorId = requireApprovedVendorId(email);
         requireOwnedVehicle(vendorId, vehicleId);
         return normalizedRows(jdbc.queryForList("""
                 SELECT id, media_type, original_name, content_type, uploaded_at,
@@ -203,7 +212,7 @@ public class VendorOperationsService {
                                                         List<MultipartFile> registrationDocuments,
                                                         List<MultipartFile> insuranceDocuments,
                                                         List<MultipartFile> pucDocuments) {
-        long vendorId = requireApprovedVendor(email).getId();
+        long vendorId = requireApprovedVendorId(email);
         requireEditableVehicle(vendorId, vehicleId);
 
         Map<String, List<MultipartFile>> uploads = new LinkedHashMap<>();
@@ -281,7 +290,7 @@ public class VendorOperationsService {
 
     @Transactional(readOnly = true)
     public VehicleMediaFile vehicleMediaFile(String email, long vehicleId, long mediaId) {
-        long vendorId = requireApprovedVendor(email).getId();
+        long vendorId = requireApprovedVendorId(email);
         requireOwnedVehicle(vendorId, vehicleId);
         try {
             Map<String, Object> media = normalized(jdbc.queryForMap("""
@@ -297,7 +306,7 @@ public class VendorOperationsService {
 
     @Transactional
     public void deleteVehicle(String email, long vehicleId) {
-        long vendorId = requireApprovedVendor(email).getId();
+        long vendorId = requireApprovedVendorId(email);
         Integer bookingCount = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM bookings WHERE vehicle_id = ?", Integer.class, vehicleId);
         if (!ownsVehicle(vendorId, vehicleId)) {
@@ -319,7 +328,7 @@ public class VendorOperationsService {
 
     @Transactional
     public Map<String, Object> setAvailability(String email, long vehicleId, String availability) {
-        long vendorId = requireApprovedVendor(email).getId();
+        long vendorId = requireApprovedVendorId(email);
         String normalized = availability == null ? "" : availability.trim().toUpperCase(Locale.ROOT);
         if (!Set.of("AVAILABLE", "UNAVAILABLE").contains(normalized)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Availability must be AVAILABLE or UNAVAILABLE");
@@ -340,12 +349,12 @@ public class VendorOperationsService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> bookings(String email, String status) {
-        return bookings(requireApprovedVendor(email).getId(), status, 100);
+        return bookings(requireApprovedVendorId(email), status, 100);
     }
 
     @Transactional
     public Map<String, Object> reviewBooking(String email, long bookingId, String decision, String reason) {
-        long vendorId = requireApprovedVendor(email).getId();
+        long vendorId = requireApprovedVendorId(email);
         Map<String, Object> booking;
         try {
             booking = normalized(jdbc.queryForMap("""
@@ -416,7 +425,7 @@ public class VendorOperationsService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> payments(String email) {
-        long vendorId = requireApprovedVendor(email).getId();
+        long vendorId = requireApprovedVendorId(email);
         return normalizedRows(jdbc.queryForList("""
                 SELECT p.id, p.booking_id, p.amount, p.currency, p.provider, p.status,
                        p.created_at AS payment_date, v.title AS vehicle_name
@@ -559,6 +568,34 @@ public class VendorOperationsService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
                         "An active, approved vendor account is required"));
         return user;
+    }
+
+    private long requireApprovedVendorId(String email) {
+        return vendorProfileId(requireApprovedVendor(email));
+    }
+
+    private long vendorProfileId(User vendor) {
+        try {
+            Long profileId = jdbc.queryForObject(
+                    "SELECT id FROM vendor_profiles WHERE user_id = ?", Long.class, vendor.getId());
+            if (profileId == null) throw new IllegalStateException("Vendor profile ID was null");
+            return profileId;
+        } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Approved vendor profile is missing; please contact SmartRide support");
+        }
+    }
+
+    private long categoryId(String category) {
+        try {
+            Long id = jdbc.queryForObject(
+                    "SELECT id FROM vehicle_categories WHERE LOWER(name) = LOWER(?)",
+                    Long.class, category.trim());
+            if (id == null) throw new IllegalStateException("Vehicle category ID was null");
+            return id;
+        } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select a supported vehicle category");
+        }
     }
 
     private static String blankToNull(String value) {

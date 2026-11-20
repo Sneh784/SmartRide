@@ -16,7 +16,7 @@ function Status({ value }) {
 
 export default function VendorVehicles({ approvalsOnly = false }) {
   const { state } = useLocation();
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(approvalsOnly ? 'PENDING' : '');
   const [search, setSearch] = useState('');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -73,13 +73,22 @@ export default function VendorVehicles({ approvalsOnly = false }) {
     }
   };
 
+  const emptyTitle = approvalsOnly && status === 'PENDING' ? 'No vehicles awaiting review' : 'No vehicles found';
+  const emptyDescription = search || status
+    ? 'Try another search or filter.'
+    : approvalsOnly
+      ? 'Submit a vehicle to track its review status here.'
+      : 'Add a vehicle to start building your fleet.';
+
   return (
     <div>
       <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-xs font-bold uppercase tracking-[.16em] text-[#D95400]">Vehicle management</p>
-          <h1 className="mt-1 text-2xl font-extrabold text-slate-900">{approvalsOnly ? 'Vehicle approval status' : 'My vehicles'}</h1>
-          <p className="mt-2 text-sm text-slate-500">Manage only vehicles associated with your vendor account.</p>
+          <h1 className="mt-1 text-2xl font-extrabold text-slate-900">{approvalsOnly ? 'Vehicle approvals' : 'My vehicles'}</h1>
+          <p className="mt-2 text-sm text-slate-500">{approvalsOnly
+            ? 'Track the review status of vehicles submitted to SmartRide.'
+            : 'Manage only vehicles associated with your vendor account.'}</p>
         </div>
         {!approvalsOnly && <Link to="/vendor/vehicles/add" className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#FF6B00] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#E85D00]"><Plus size={17} />Add vehicle</Link>}
       </header>
@@ -90,12 +99,11 @@ export default function VendorVehicles({ approvalsOnly = false }) {
           <input value={search} onChange={(event) => { setLoading(true); setSearch(event.target.value); }} placeholder="Search title, brand, or model" className="min-w-0 flex-1 text-sm outline-none" />
         </label>
         <select value={status} onChange={(event) => { setLoading(true); setStatus(event.target.value); }} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm">
-          <option value="">All vehicles</option>
-          <option value="PENDING">Pending approval</option>
+          <option value="">{approvalsOnly ? 'All approval statuses' : 'All vehicles'}</option>
+          <option value="PENDING">{approvalsOnly ? 'Pending review' : 'Pending approval'}</option>
           <option value="APPROVED">Approved</option>
           <option value="REJECTED">Rejected</option>
-          <option value="AVAILABLE">Available</option>
-          <option value="UNAVAILABLE">Unavailable</option>
+          {!approvalsOnly && <><option value="AVAILABLE">Available</option><option value="UNAVAILABLE">Unavailable</option></>}
         </select>
       </div>
 
@@ -132,7 +140,7 @@ export default function VendorVehicles({ approvalsOnly = false }) {
               </tbody>
             </table>
           </div>
-        ) : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center"><CarFront size={28} className="mx-auto text-slate-300" /><p className="mt-3 font-semibold text-slate-700">No vehicles found</p><p className="mt-1 text-sm text-slate-500">{search || status ? 'Try another filter.' : 'Vehicles you submit will appear here with their review status.'}</p>{!approvalsOnly && !search && !status && <Link to="/vendor/vehicles/add" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#FF6B00] px-4 py-2 text-sm font-bold text-white hover:bg-[#E85D00]"><Plus size={16} />Add vehicle</Link>}</div>}
+        ) : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center"><CarFront size={28} className="mx-auto text-slate-300" /><p className="mt-3 font-semibold text-slate-700">{emptyTitle}</p><p className="mt-1 text-sm text-slate-500">{emptyDescription}</p>{!search && (!approvalsOnly || !status) && <Link to="/vendor/vehicles/add" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#FF6B00] px-4 py-2 text-sm font-bold text-white hover:bg-[#E85D00]"><Plus size={16} />Add vehicle</Link>}</div>}
     </div>
   );
 }

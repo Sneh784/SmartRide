@@ -10,6 +10,7 @@ import com.smartride.backend.repository.VendorApplicationRepository;
 import com.smartride.backend.repository.VendorDocumentRepository;
 import com.smartride.backend.security.JwtService;
 import com.smartride.backend.service.VendorDocumentStorage;
+import com.smartride.backend.service.ApprovalEmailNotificationService;
 import com.smartride.backend.service.VendorWorkflowService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +39,7 @@ class VendorWorkflowServiceTest {
     @Mock private JwtService jwtService;
     @Mock private JdbcTemplate jdbc;
     @Mock private VendorDocumentStorage storage;
+    @Mock private ApprovalEmailNotificationService approvalEmails;
     @InjectMocks private VendorWorkflowService service;
 
     @Test

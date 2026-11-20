@@ -72,6 +72,10 @@ public class AuthService {
                 && !"APPROVED".equalsIgnoreCase(user.getApprovalStatus())) {
             throw new IllegalArgumentException("Vendor account is not approved");
         }
+        if (user.getRole() == RoleName.DRIVER
+                && !"APPROVED".equalsIgnoreCase(user.getApprovalStatus())) {
+            throw new IllegalArgumentException("Driver account is not approved");
+        }
         return new LoginResponse(jwtService.generateToken(user.getEmail()), "Bearer",
                 user.getFullName(), user.getRole().name(), user.getEmail());
     }

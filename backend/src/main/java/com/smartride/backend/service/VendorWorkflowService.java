@@ -43,10 +43,12 @@ public class VendorWorkflowService {
     private final JwtService jwtService;
     private final JdbcTemplate jdbc;
     private final VendorDocumentStorage storage;
+    private final ApprovalEmailNotificationService approvalEmails;
 
     public VendorWorkflowService(VendorApplicationRepository applications, VendorDocumentRepository documents,
                                  UserRepository users, RoleRepository roles, PasswordEncoder passwordEncoder,
-                                 JwtService jwtService, JdbcTemplate jdbc, VendorDocumentStorage storage) {
+                                 JwtService jwtService, JdbcTemplate jdbc, VendorDocumentStorage storage,
+                                 ApprovalEmailNotificationService approvalEmails) {
         this.applications = applications;
         this.documents = documents;
         this.users = users;
@@ -55,6 +57,7 @@ public class VendorWorkflowService {
         this.jwtService = jwtService;
         this.jdbc = jdbc;
         this.storage = storage;
+        this.approvalEmails = approvalEmails;
     }
 
     @Transactional
@@ -201,7 +204,7 @@ public class VendorWorkflowService {
                 WHERE 1 = 1
                 """);
         StringBuilder itemsSql = new StringBuilder("""
-                SELECT application.id, application.application_number, vendor.full_name,
+                SELECT application.id, vendor.id AS user_id, application.application_number, vendor.full_name,
                        vendor.email, vendor.phone, application.business_name, application.city,
                        application.submitted_at, application.status
                 FROM vendor_applications application
@@ -267,6 +270,7 @@ public class VendorWorkflowService {
                     item.put("city", row.get("city"));
                     item.put("submittedAt", row.get("submitted_at"));
                     item.put("status", row.get("status"));
+                    item.putAll(approvalEmails.status(((Number) row.get("user_id")).longValue(), "VENDOR"));
                     return item;
                 }).toList();
         long total = totalElements == null ? 0 : totalElements;
@@ -327,6 +331,24 @@ public class VendorWorkflowService {
             default -> "Your SmartRide vendor account has been suspended. Please contact SmartRide Support.";
         };
         addVendorNotification(vendor.getId(), "Application " + nextStatus.toLowerCase(Locale.ROOT), message);
+        if ("APPROVED".equals(nextStatus)) approvalEmails.queue(vendor, "VENDOR");
+    }
+
+    public Map<String, Object> approvalEmailStatus(long applicationId) {
+        VendorApplication application = applications.findById(applicationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendor application not found"));
+        return approvalEmails.status(application.getUser().getId(), "VENDOR");
+    }
+
+    @Transactional
+    public Map<String, Object> retryApprovalEmail(long applicationId) {
+        VendorApplication application = applications.findById(applicationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendor application not found"));
+        if (!"APPROVED".equals(application.getStatus()) || !application.getUser().isActive()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Only active, approved vendors can receive an approval email");
+        }
+        return approvalEmails.retry(application.getUser().getId(), "VENDOR");
     }
 
     @Transactional(readOnly = true)

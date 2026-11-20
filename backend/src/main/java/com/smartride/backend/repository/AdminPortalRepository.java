@@ -64,7 +64,10 @@ public class AdminPortalRepository {
         return jdbc.queryForList("""
                 SELECT id, full_name AS name, email, phone, role,
                        COALESCE(approval_status, CASE WHEN is_active THEN 'ACTIVE' ELSE 'SUSPENDED' END) AS status,
-                       approval_reason AS reason, created_at AS created_at
+                       approval_reason AS reason, created_at AS created_at,
+                       COALESCE((SELECT notification.status FROM approval_email_notifications notification
+                                 WHERE notification.user_id = users.id AND notification.account_type = 'DRIVER'),
+                                'NOT_SENT') AS approval_email_status
                 FROM users
                 WHERE role = ?
                   AND (? = '' OR COALESCE(approval_status, CASE WHEN is_active THEN 'ACTIVE' ELSE 'SUSPENDED' END) = ?)
@@ -82,6 +85,15 @@ public class AdminPortalRepository {
         return jdbc.update("""
                 UPDATE users SET approval_status = ?, approval_reason = ?, is_active = ? WHERE id = ? AND role = ?
                 """, status, reason, active, id, role);
+    }
+
+    public int approveDriver(long id, long adminId) {
+        return jdbc.update("""
+                UPDATE users
+                SET approval_status = 'APPROVED', approval_reason = NULL, is_active = TRUE,
+                    approved_at = CURRENT_TIMESTAMP, approved_by = ?
+                WHERE id = ? AND role = 'DRIVER' AND approval_status = 'PENDING'
+                """, adminId, id);
     }
 
     public void audit(String adminEmail, String action, String entityType, long entityId, String reason) {

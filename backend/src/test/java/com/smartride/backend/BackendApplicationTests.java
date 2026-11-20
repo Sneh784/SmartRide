@@ -17,6 +17,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
@@ -54,6 +55,9 @@ class BackendApplicationTests {
 
 	@Autowired
 	private ObjectMapper objectMapper;
+
+	@Autowired
+	private JdbcTemplate jdbc;
 
 	@MockBean
 	private VendorDocumentStorage vendorDocumentStorage;
@@ -130,6 +134,7 @@ class BackendApplicationTests {
 		vendor.setApprovalStatus("APPROVED");
 		vendor.setActive(true);
 		userRepository.saveAndFlush(vendor);
+		createVendorProfile(vendor);
 		String token = jwtService.generateToken(email);
 
 		mockMvc.perform(get("/api/vendor/dashboard").header("Authorization", "Bearer " + token))
@@ -158,11 +163,12 @@ class BackendApplicationTests {
 		vendor.setApprovalStatus("APPROVED");
 		vendor.setActive(true);
 		userRepository.saveAndFlush(vendor);
+		createVendorProfile(vendor);
 		String token = jwtService.generateToken(email);
 		String suffix = UUID.randomUUID().toString();
 
 		Map<String, Object> vehicle = Map.ofEntries(
-				Map.entry("category", "Car"),
+				Map.entry("category", "Cars"),
 				Map.entry("title", "Test vehicle"),
 				Map.entry("brand", "Example"),
 				Map.entry("model", "Model"),
@@ -204,6 +210,16 @@ class BackendApplicationTests {
 						.header("Authorization", "Bearer " + token))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(1));
+	}
+
+	private void createVendorProfile(User vendor) {
+		jdbc.update("""
+				INSERT INTO vendor_profiles (
+					user_id, business_name, business_type, business_email, business_phone,
+					address, city, state, pin_code
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+				""", vendor.getId(), "Test Rentals", "Individual", vendor.getEmail(),
+				"9876543210", "1 Test Street", "Bengaluru", "Karnataka", "560001");
 	}
 
 }

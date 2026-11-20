@@ -38,7 +38,7 @@ export default function Login() {
       const destinations = {
         CUSTOMER: '/customer/dashboard',
         VENDOR: '/vendor/dashboard',
-        DRIVER: '/driver-dashboard',
+        DRIVER: '/driver/dashboard',
         FLEET_MANAGER: '/vendor-dashboard',
         ADMIN: '/admin-dashboard',
       };

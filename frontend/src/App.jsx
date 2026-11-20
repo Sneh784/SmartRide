@@ -5,6 +5,7 @@ import Booking from './pages/Booking';
 import BookingSuccess from './pages/BookingSuccess';
 import BrowseVehicles from './pages/BrowseVehicles';
 import DriverForm from './pages/DriverForm';
+import DriverLogin from './pages/DriverLogin';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -18,6 +19,7 @@ import VendorVehicles from './pages/vendor/VendorVehicles';
 import VendorVehicleForm from './pages/vendor/VendorVehicleForm';
 import { VendorBookings, VendorDocuments, VendorNotifications, VendorPayments, VendorUnavailablePage } from './pages/vendor/VendorDataPages';
 import RequireVendor from './routes/RequireVendor';
+import RequireDriver from './routes/RequireDriver';
 import CustomerLayout from './components/customer/CustomerLayout';
 import RequireCustomer from './routes/RequireCustomer';
 import { CustomerBookings, CustomerDashboard as CustomerHome, CustomerKyc, CustomerNotifications, CustomerPayments, CustomerProfile, CustomerSupport, CustomerVehicles, CustomerWishlist } from './pages/customer/CustomerPages';
@@ -38,6 +40,7 @@ function App() {
             <Route path="/vendor/register" element={<VendorRegister />} />
             <Route path="/vendor/application-submitted" element={<VendorApplicationSubmitted />} />
             <Route path="/vendor/login" element={<VendorLogin />} />
+            <Route path="/driver/login" element={<DriverLogin />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/vehicles" element={<BrowseVehicles />} />
             <Route path="/vehicles/:id" element={<VehicleDetails />} />
@@ -85,7 +88,10 @@ function App() {
               </Route>
               <Route path="/vendor-dashboard" element={<Navigate to="/vendor/dashboard" replace />} />
             </Route>
-            <Route path="/driver-dashboard" element={<DriverForm />} />
+            <Route element={<RequireDriver />}>
+              <Route path="/driver/dashboard" element={<DriverForm />} />
+              <Route path="/driver-dashboard" element={<Navigate to="/driver/dashboard" replace />} />
+            </Route>
             <Route path="/admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
             <Route element={<RequireAdmin />}>
               <Route path="/admin" element={<AdminLayout />}>
