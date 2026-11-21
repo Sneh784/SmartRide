@@ -11,6 +11,7 @@ import com.smartride.backend.repository.VendorApplicationRepository;
 import com.smartride.backend.repository.VendorDocumentRepository;
 import com.smartride.backend.security.JwtService;
 import com.smartride.backend.service.VendorDocumentStorage;
+import com.smartride.backend.service.CloudinaryImageStorage;
 import com.smartride.backend.service.ApprovalEmailNotificationService;
 import com.smartride.backend.service.VendorWorkflowService;
 import org.junit.jupiter.api.Test;
@@ -44,6 +45,7 @@ class VendorWorkflowServiceTest {
     @Mock private JwtService jwtService;
     @Mock private JdbcTemplate jdbc;
     @Mock private VendorDocumentStorage storage;
+    @Mock private CloudinaryImageStorage cloudinary;
     @Mock private ApprovalEmailNotificationService approvalEmails;
     @InjectMocks private VendorWorkflowService service;
 
@@ -186,8 +188,10 @@ class VendorWorkflowServiceTest {
         when(file.isEmpty()).thenReturn(false);
         when(users.findByEmail("vendor@example.com")).thenReturn(Optional.of(vendor));
         when(applications.findByUserId(vendor.getId())).thenReturn(Optional.of(application));
-        when(storage.store(file, false)).thenReturn(
-                new VendorDocumentStorage.StoredFile("stored-key.pdf", ".pdf", "application/pdf"));
+        when(cloudinary.store(file, "smartride/vendors/documents", false)).thenReturn(
+                new CloudinaryImageStorage.StoredAsset("smartride/vendors/documents/stored-key.pdf",
+                        "https://res.cloudinary.com/test/raw/upload/stored-key.pdf", "PAN_CARD.pdf",
+                        "application/pdf", "raw"));
         TransactionSynchronizationManager.initSynchronization();
 
         try {
@@ -196,7 +200,7 @@ class VendorWorkflowServiceTest {
             var captor = forClass(VendorDocument.class);
             verify(documents).save(captor.capture());
             assertEquals("PAN_CARD", captor.getValue().getDocumentType());
-            assertEquals("stored-key.pdf", captor.getValue().getStorageKey());
+            assertEquals("smartride/vendors/documents/stored-key.pdf", captor.getValue().getStorageKey());
             assertEquals("PAN_CARD.pdf", result.get("originalName"));
         } finally {
             TransactionSynchronizationManager.clearSynchronization();

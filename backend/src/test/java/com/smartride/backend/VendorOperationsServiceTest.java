@@ -5,6 +5,7 @@ import com.smartride.backend.entity.User;
 import com.smartride.backend.enums.RoleName;
 import com.smartride.backend.repository.UserRepository;
 import com.smartride.backend.service.VendorDocumentStorage;
+import com.smartride.backend.service.CloudinaryImageStorage;
 import com.smartride.backend.service.VendorOperationsService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +27,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -39,6 +41,7 @@ class VendorOperationsServiceTest {
     @Mock private JdbcTemplate jdbc;
     @Mock private UserRepository users;
     @Mock private VendorDocumentStorage storage;
+    @Mock private CloudinaryImageStorage cloudinaryImages;
     @InjectMocks private VendorOperationsService service;
 
     @Test
@@ -59,8 +62,12 @@ class VendorOperationsServiceTest {
 
         service.vehicles("vendor@example.com", "", "");
 
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
-        verify(jdbc).queryForList(contains("FROM vehicles WHERE vendor_id = ?"), args.capture());
+        verify(jdbc).queryForList(sql.capture(), args.capture());
+        assertTrue(sql.getValue().contains("FROM vehicles WHERE vendor_id = ?"));
+        assertTrue(sql.getValue().contains("media.media_type = 'PHOTO'"));
+        assertTrue(sql.getValue().contains("AS image_url"));
         assertEquals(29L, args.getValue()[0]);
     }
 

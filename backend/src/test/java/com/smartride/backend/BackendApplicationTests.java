@@ -10,6 +10,7 @@ import com.smartride.backend.repository.VendorApplicationRepository;
 import com.smartride.backend.security.JwtService;
 import com.smartride.backend.service.DriverDocumentStorage;
 import com.smartride.backend.service.CustomerKycDocumentStorage;
+import com.smartride.backend.service.CloudinaryImageStorage;
 import com.smartride.backend.service.VendorDocumentStorage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -77,6 +78,9 @@ class BackendApplicationTests {
 	@MockBean
 	private CustomerKycDocumentStorage customerKycDocumentStorage;
 
+	@MockBean
+	private CloudinaryImageStorage cloudinaryImageStorage;
+
 	@TempDir
 	private Path tempDir;
 
@@ -98,11 +102,13 @@ class BackendApplicationTests {
 		String email = "vendor-" + suffix + "@example.com";
 		byte[] pdf = "%PDF-1.4\nvendor test document".getBytes(StandardCharsets.UTF_8);
 		byte[] png = new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a};
-		when(vendorDocumentStorage.store(any(), anyBoolean())).thenAnswer(invocation -> {
-			boolean imageOnly = invocation.getArgument(1);
-			String extension = imageOnly ? ".png" : ".pdf";
+		when(cloudinaryImageStorage.store(any(), anyString(), anyBoolean())).thenAnswer(invocation -> {
+			boolean imageOnly = invocation.getArgument(2);
+			String folder = invocation.getArgument(1);
 			String contentType = imageOnly ? "image/png" : "application/pdf";
-			return new VendorDocumentStorage.StoredFile(UUID.randomUUID() + extension, extension, contentType);
+			String id = folder + "/" + UUID.randomUUID() + (imageOnly ? "" : ".pdf");
+			return new CloudinaryImageStorage.StoredAsset(id, "https://res.cloudinary.com/test/" + id,
+					imageOnly ? "profile.png" : "document.pdf", contentType, imageOnly ? "image" : "raw");
 		});
 
 		var application = Map.ofEntries(
@@ -156,7 +162,7 @@ class BackendApplicationTests {
 				WHERE a.application_number = ? AND d.document_type = 'BUSINESS_REGISTRATION'
 				  AND d.content_type = 'application/pdf'
 				""", Integer.class, applicationNumber));
-		verify(vendorDocumentStorage, times(5)).store(any(), anyBoolean());
+		verify(cloudinaryImageStorage, times(5)).store(any(), anyString(), anyBoolean());
 
 		mockMvc.perform(multipart("/api/vendor/auth/register")
 						.file(applicationPart)
@@ -445,7 +451,7 @@ class BackendApplicationTests {
 	}
 
 	@Test
-	void approvedVendorCanCreateVehicleAndUploadPrivatePhotos() throws Exception {
+	void approvedVendorCanCreateVehicleAndUploadPhotos() throws Exception {
 		String email = "vehicle-vendor-" + UUID.randomUUID() + "@example.com";
 		Role vendorRole = roleRepository.findByName(RoleName.VENDOR).orElseThrow();
 		User vendor = new User();
@@ -491,8 +497,10 @@ class BackendApplicationTests {
 				.andReturn().getResponse().getContentAsString();
 		long vehicleId = objectMapper.readTree(created).get("id").asLong();
 
-		when(vendorDocumentStorage.store(any(), anyBoolean())).thenReturn(
-				new VendorDocumentStorage.StoredFile(UUID.randomUUID() + ".jpg", ".jpg", "image/jpeg"));
+		when(cloudinaryImageStorage.store(any(), anyString(), anyBoolean())).thenReturn(
+				new CloudinaryImageStorage.StoredAsset(
+						"smartride/vehicles/photos/test-photo", "https://res.cloudinary.com/test/image/upload/test-photo",
+						"vehicle.jpg", "image/jpeg", "image"));
 		mockMvc.perform(multipart("/api/vendor/vehicles/" + vehicleId + "/media")
 						.file(new MockMultipartFile("photos", "vehicle.jpg", "image/jpeg",
 								new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff}))

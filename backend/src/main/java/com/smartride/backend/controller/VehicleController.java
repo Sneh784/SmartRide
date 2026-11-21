@@ -1,6 +1,7 @@
 package com.smartride.backend.controller;
 
 import com.smartride.backend.repository.VehicleCatalogRepository;
+import com.smartride.backend.service.CloudinaryImageStorage;
 import com.smartride.backend.service.VendorDocumentStorage;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -12,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.net.URI;
 import java.time.LocalDateTime;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,11 +29,14 @@ import java.util.List;
 public class VehicleController {
     private final VehicleCatalogRepository vehicleCatalogRepository;
     private final VendorDocumentStorage vendorDocumentStorage;
+    private final CloudinaryImageStorage cloudinaryImages;
 
     public VehicleController(VehicleCatalogRepository vehicleCatalogRepository,
-                             VendorDocumentStorage vendorDocumentStorage) {
+                             VendorDocumentStorage vendorDocumentStorage,
+                             CloudinaryImageStorage cloudinaryImages) {
         this.vehicleCatalogRepository = vehicleCatalogRepository;
         this.vendorDocumentStorage = vendorDocumentStorage;
+        this.cloudinaryImages = cloudinaryImages;
     }
 
     @GetMapping("/vehicles")
@@ -50,9 +55,14 @@ public class VehicleController {
     }
 
     @GetMapping("/vehicles/{id}/photos/{photoId}")
-    public ResponseEntity<Resource> getVehiclePhoto(@PathVariable long id, @PathVariable long photoId) {
+    public ResponseEntity<?> getVehiclePhoto(@PathVariable long id, @PathVariable long photoId) {
         VehicleCatalogRepository.VehiclePhoto photo =
                 vehicleCatalogRepository.findAvailableVehiclePhoto(id, photoId);
+        if (photo.secureUrl() != null && photo.secureUrl().startsWith("https://")) {
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .location(URI.create(photo.secureUrl()))
+                    .build();
+        }
         Path path = vendorDocumentStorage.resolve(photo.storageKey());
         if (!Files.isRegularFile(path)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vehicle photo not found");

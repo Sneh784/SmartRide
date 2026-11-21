@@ -5,6 +5,7 @@ import com.smartride.backend.dto.VendorBookingRejectionRequest;
 import com.smartride.backend.dto.VendorRegistrationRequest;
 import com.smartride.backend.dto.VendorVehicleRequest;
 import com.smartride.backend.entity.VendorDocument;
+import com.smartride.backend.service.CloudinaryImageStorage;
 import com.smartride.backend.service.VendorDocumentStorage;
 import com.smartride.backend.service.VendorOperationsService;
 import com.smartride.backend.service.VendorWorkflowService;
@@ -32,6 +33,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.net.URI;
 import java.util.Map;
 
 @RestController
@@ -40,12 +42,14 @@ public class VendorWorkflowController {
     private final VendorWorkflowService service;
     private final VendorOperationsService operations;
     private final VendorDocumentStorage storage;
+    private final CloudinaryImageStorage cloudinaryImages;
 
     public VendorWorkflowController(VendorWorkflowService service, VendorOperationsService operations,
-                                    VendorDocumentStorage storage) {
+                                    VendorDocumentStorage storage, CloudinaryImageStorage cloudinaryImages) {
         this.service = service;
         this.operations = operations;
         this.storage = storage;
+        this.cloudinaryImages = cloudinaryImages;
     }
 
     @PostMapping("/auth/register")
@@ -109,10 +113,15 @@ public class VendorWorkflowController {
     }
 
     @GetMapping("/vehicles/{id}/media/{mediaId}")
-    public ResponseEntity<Resource> vehicleMediaFile(Authentication authentication, @PathVariable long id,
-                                                      @PathVariable long mediaId) {
+    public ResponseEntity<?> vehicleMediaFile(Authentication authentication, @PathVariable long id,
+                                               @PathVariable long mediaId) {
         VendorOperationsService.VehicleMediaFile media =
                 operations.vehicleMediaFile(authentication.getName(), id, mediaId);
+        if (media.secureUrl() != null && media.secureUrl().startsWith("https://")) {
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .location(URI.create(media.secureUrl()))
+                    .build();
+        }
         Path path = storage.resolve(media.storageKey());
         if (!Files.isRegularFile(path)) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vehicle file not found");
         return ResponseEntity.ok()
@@ -121,6 +130,13 @@ public class VendorWorkflowController {
                         ContentDisposition.inline().filename(media.originalName()).build().toString())
                 .header("X-Content-Type-Options", "nosniff")
                 .body(new FileSystemResource(path));
+    }
+
+    @DeleteMapping("/vehicles/{id}/media/{mediaId}")
+    public ResponseEntity<Void> deleteVehicleMedia(Authentication authentication, @PathVariable long id,
+                                                    @PathVariable long mediaId) {
+        operations.deleteVehicleMedia(authentication.getName(), id, mediaId);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/vehicles")
@@ -182,9 +198,13 @@ public class VendorWorkflowController {
     }
 
     @GetMapping("/documents/{id}")
-    public ResponseEntity<Resource> vendorDocument(Authentication authentication, @PathVariable long id) {
+    public ResponseEntity<?> vendorDocument(Authentication authentication, @PathVariable long id) {
         long userId = service.vendorUserId(authentication.getName());
-        return documentResponse(service.getDocument(userId, id, false));
+        VendorDocument document = service.getDocument(userId, id, false);
+        if (document.getSecureUrl() != null && document.getSecureUrl().startsWith("https://")) {
+            return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(document.getSecureUrl())).build();
+        }
+        return documentResponse(document);
     }
 
     @PostMapping("/documents")
@@ -194,6 +214,12 @@ public class VendorWorkflowController {
             @RequestPart("document") MultipartFile document) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(service.uploadDocument(authentication.getName(), documentType, document));
+    }
+
+    @DeleteMapping("/documents/{id}")
+    public ResponseEntity<Void> deleteVendorDocument(Authentication authentication, @PathVariable long id) {
+        service.deleteDocument(authentication.getName(), id);
+        return ResponseEntity.noContent().build();
     }
 
     private ResponseEntity<Resource> documentResponse(VendorDocument document) {
