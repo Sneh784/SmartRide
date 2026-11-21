@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { CarFront, CircleAlert, LoaderCircle, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { CarFront, CircleAlert, LoaderCircle, Pencil, Plus, Search, Trash2, Upload } from 'lucide-react';
 import { vendorApi } from '../../api/vendorApi';
 
 const read = (row, key) => row?.[key] ?? row?.[key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)];
 const money = (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(value) || 0);
+const photoUrl = (value) => value
+  ? new URL(value, import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1').toString()
+  : '';
 
 function Status({ value }) {
   const status = String(value || 'UNKNOWN').replaceAll('_', ' ');
@@ -73,6 +76,28 @@ export default function VendorVehicles({ approvalsOnly = false }) {
     }
   };
 
+  const uploadPhotos = async (vehicle, files) => {
+    if (!files.length) return;
+    const invalid = files.find((file) => file.size > 5 * 1024 * 1024
+      || !['image/jpeg', 'image/png'].includes(file.type));
+    if (invalid) {
+      setError('Vehicle photos must be JPG or PNG files, each 5 MB or smaller.');
+      return;
+    }
+    const body = new FormData();
+    files.forEach((file) => body.append('photos', file));
+    setError('');
+    setMessage('');
+    try {
+      await vendorApi.uploadVehicleMedia(read(vehicle, 'id'), body);
+      setMessage('Vehicle photos uploaded to Cloudinary.');
+      await load();
+    } catch (requestError) {
+      setError(requestError?.response?.data?.message || requestError?.response?.data?.detail
+        || 'Could not upload vehicle photos. Check Cloudinary configuration and try again.');
+    }
+  };
+
   const emptyTitle = approvalsOnly && status === 'PENDING' ? 'No vehicles awaiting review' : 'No vehicles found';
   const emptyDescription = search || status
     ? 'Try another search or filter.'
@@ -123,8 +148,9 @@ export default function VendorVehicles({ approvalsOnly = false }) {
                   const approval = String(read(vehicle, 'approval_status') || 'PENDING').toUpperCase();
                   const availability = String(read(vehicle, 'availability_status') || 'UNAVAILABLE').toUpperCase();
                   const editable = approval === 'PENDING' || approval === 'REJECTED';
+                  const image = photoUrl(read(vehicle, 'image_url'));
                   return <tr key={read(vehicle, 'id')} className="align-top hover:bg-slate-50/70">
-                    <td className="px-4 py-4"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-[#B54700]"><CarFront size={20} /></span><div><p className="font-bold text-slate-900">{read(vehicle, 'title')}</p><p className="text-xs text-slate-500">{read(vehicle, 'brand')} {read(vehicle, 'model')}</p></div></div></td>
+                    <td className="px-4 py-4"><div className="flex items-center gap-3"><span className="relative flex h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-orange-50 text-[#B54700]"><CarFront size={20} />{image && <img src={image} alt={`${read(vehicle, 'title')} photo`} loading="lazy" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none'; }} />}</span><div><p className="font-bold text-slate-900">{read(vehicle, 'title')}</p><p className="text-xs text-slate-500">{read(vehicle, 'brand')} {read(vehicle, 'model')}</p></div></div></td>
                     <td className="px-4 py-4 text-slate-600">{read(vehicle, 'category') || '—'}</td>
                     <td className="px-4 py-4 text-slate-600">{read(vehicle, 'year') || '—'}</td>
                     <td className="px-4 py-4 text-slate-600">{read(vehicle, 'city') || '—'}</td>
@@ -132,6 +158,7 @@ export default function VendorVehicles({ approvalsOnly = false }) {
                     <td className="px-4 py-4"><Status value={approval} />{read(vehicle, 'approval_reason') && <p className="mt-1 max-w-48 text-xs text-red-700">{read(vehicle, 'approval_reason')}</p>}</td>
                     <td className="px-4 py-4">{approval === 'APPROVED' ? <select aria-label={`Availability for ${read(vehicle, 'title')}`} value={availability} onChange={(event) => toggleAvailability(vehicle, event.target.value)} className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"><option value="AVAILABLE">Available</option><option value="UNAVAILABLE">Unavailable</option></select> : <Status value={availability} />}</td>
                     <td className="px-4 py-4"><div className="flex items-center gap-2">
+                      {!approvalsOnly && <label title="Upload or replace vehicle photos" className="cursor-pointer rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-100"><Upload size={15} /><input type="file" accept="image/jpeg,image/png" multiple className="sr-only" aria-label={`Upload photos for ${read(vehicle, 'title')}`} onChange={(event) => { const files = Array.from(event.target.files || []); event.target.value = ''; if (files.length > 6) setError('Select no more than 6 vehicle photos.'); else uploadPhotos(vehicle, files); }} /></label>}
                       {editable && <Link to={`/vendor/vehicles/edit/${read(vehicle, 'id')}`} aria-label={`Edit ${read(vehicle, 'title')}`} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-100"><Pencil size={15} /></Link>}
                       {editable && <button onClick={() => remove(vehicle)} aria-label={`Delete ${read(vehicle, 'title')}`} className="rounded-lg border border-slate-200 p-2 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button>}
                     </div></td>

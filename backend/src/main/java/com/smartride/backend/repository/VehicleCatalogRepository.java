@@ -118,20 +118,21 @@ public class VehicleCatalogRepository {
     public VehiclePhoto findAvailableVehiclePhoto(long vehicleId, long photoId) {
         try {
             return jdbcTemplate.queryForObject("""
-                    SELECT media.storage_key, media.content_type, media.original_name
+                    SELECT media.storage_key, media.content_type, media.original_name, media.secure_url
                     FROM vehicle_media media
                     JOIN vehicles v ON v.id = media.vehicle_id
                     WHERE v.id = ? AND media.id = ? AND media.media_type = 'PHOTO'
                       AND UPPER(COALESCE(v.approval_status, 'PENDING')) = 'APPROVED'
                     """, (rs, rowNum) -> new VehiclePhoto(
-                    rs.getString("storage_key"), rs.getString("content_type"), rs.getString("original_name")),
+                    rs.getString("storage_key"), rs.getString("content_type"), rs.getString("original_name"),
+                    rs.getString("secure_url")),
                     vehicleId, photoId);
         } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vehicle photo not found");
         }
     }
 
-    public record VehiclePhoto(String storageKey, String contentType, String originalName) { }
+    public record VehiclePhoto(String storageKey, String contentType, String originalName, String secureUrl) { }
 
     private static List<Map<String, Object>> normalizedRows(List<Map<String, Object>> rows) {
         return rows.stream().map(VehicleCatalogRepository::normalized).toList();

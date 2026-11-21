@@ -26,8 +26,14 @@ public class VendorDocument {
     @Column(name = "document_type", nullable = false, length = 40)
     private String documentType;
 
-    @Column(name = "storage_key", nullable = false, unique = true, length = 80)
+    @Column(name = "storage_key", nullable = false, unique = true, length = 255)
     private String storageKey;
+
+    @Column(name = "cloudinary_public_id", length = 255)
+    private String cloudinaryPublicId;
+
+    @Column(name = "secure_url", length = 1000)
+    private String secureUrl;
 
     @Column(name = "original_name", nullable = false)
     private String originalName;
@@ -45,6 +51,10 @@ public class VendorDocument {
     public void setDocumentType(String documentType) { this.documentType = documentType; }
     public String getStorageKey() { return storageKey; }
     public void setStorageKey(String storageKey) { this.storageKey = storageKey; }
+    public String getCloudinaryPublicId() { return cloudinaryPublicId; }
+    public void setCloudinaryPublicId(String cloudinaryPublicId) { this.cloudinaryPublicId = cloudinaryPublicId; }
+    public String getSecureUrl() { return secureUrl; }
+    public void setSecureUrl(String secureUrl) { this.secureUrl = secureUrl; }
     public String getOriginalName() { return originalName; }
     public void setOriginalName(String originalName) { this.originalName = originalName; }
     public String getContentType() { return contentType; }

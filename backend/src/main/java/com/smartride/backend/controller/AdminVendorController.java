@@ -3,6 +3,7 @@ package com.smartride.backend.controller;
 import com.smartride.backend.entity.VendorDocument;
 import com.smartride.backend.service.VendorDocumentStorage;
 import com.smartride.backend.service.VendorWorkflowService;
+import com.smartride.backend.service.CloudinaryImageStorage;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -31,10 +32,12 @@ import java.util.Map;
 public class AdminVendorController {
     private final VendorWorkflowService service;
     private final VendorDocumentStorage storage;
+    private final CloudinaryImageStorage cloudinary;
 
-    public AdminVendorController(VendorWorkflowService service, VendorDocumentStorage storage) {
+    public AdminVendorController(VendorWorkflowService service, VendorDocumentStorage storage, CloudinaryImageStorage cloudinary) {
         this.service = service;
         this.storage = storage;
+        this.cloudinary = cloudinary;
     }
 
     @GetMapping
@@ -63,7 +66,7 @@ public class AdminVendorController {
     }
 
     @GetMapping("/documents/{id}")
-    public ResponseEntity<Resource> document(@PathVariable long id) {
+    public ResponseEntity<?> document(@PathVariable long id) {
         return documentResponse(service.getDocument(null, id, true));
     }
 
@@ -95,7 +98,10 @@ public class AdminVendorController {
         return ResponseEntity.noContent().build();
     }
 
-    private ResponseEntity<Resource> documentResponse(VendorDocument document) {
+    private ResponseEntity<?> documentResponse(VendorDocument document) {
+        if (document.getSecureUrl() != null && document.getSecureUrl().startsWith("https://")) {
+            return ResponseEntity.status(HttpStatus.FOUND).location(java.net.URI.create(document.getSecureUrl())).build();
+        }
         Path path = storage.resolve(document.getStorageKey());
         if (!Files.isRegularFile(path)) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found");
         Resource resource = new FileSystemResource(path);

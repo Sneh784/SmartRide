@@ -163,6 +163,12 @@ public class VendorSchemaInitializer implements CommandLineRunner {
         jdbc.execute("CREATE INDEX IF NOT EXISTS idx_vendor_applications_status_date ON vendor_applications(status, submitted_at)");
         jdbc.execute("CREATE INDEX IF NOT EXISTS idx_vendor_documents_application ON vendor_documents(application_id)");
         jdbc.execute("CREATE INDEX IF NOT EXISTS idx_vehicle_media_vehicle_type ON vehicle_media(vehicle_id, media_type)");
+        jdbc.execute("ALTER TABLE vehicle_media ADD COLUMN IF NOT EXISTS cloudinary_public_id VARCHAR(255)");
+        jdbc.execute("ALTER TABLE vehicle_media ADD COLUMN IF NOT EXISTS secure_url VARCHAR(1000)");
+        jdbc.execute("ALTER TABLE vehicle_media ALTER COLUMN storage_key TYPE VARCHAR(255)");
+        jdbc.execute("ALTER TABLE vendor_documents ADD COLUMN IF NOT EXISTS cloudinary_public_id VARCHAR(255)");
+        jdbc.execute("ALTER TABLE vendor_documents ADD COLUMN IF NOT EXISTS secure_url VARCHAR(1000)");
+        jdbc.execute("ALTER TABLE vendor_documents ALTER COLUMN storage_key TYPE VARCHAR(255)");
         jdbc.execute("CREATE INDEX IF NOT EXISTS idx_vendor_notifications_user ON vendor_notifications(user_id, created_at)");
         jdbc.execute("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vendor_rejection_reason VARCHAR(1000)");
     }

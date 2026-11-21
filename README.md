@@ -101,6 +101,7 @@ Earnings are estimates based on the vehicle's with-driver daily rate multiplied 
 - Vendor applications, status changes, audit records, and notifications are stored in PostgreSQL. Approval and rejection are enforced by the backend.
 - Uploaded identity and business documents are stored outside the frontend's public assets in `private-uploads/vendors` by default. Set `SMARTRIDE_VENDOR_UPLOAD_DIR` to a persistent, access-controlled directory in deployed environments. The admin and vendor document endpoints require authentication and authorization.
 - Registration accepts PDF, PNG, and JPG/JPEG documents up to 5 MB each. Identity proof, PAN card, and address proof are required; profile image and business registration document are optional.
+- Vehicle listing photos are uploaded to Cloudinary. `application.properties` maps `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`; supply these through the launch environment or a secret manager, not a committed properties file. Registration/KYC and vehicle paperwork remain in private local storage. Previously uploaded local vehicle photos continue to be served.
 - Notification updates appear in the application. No email delivery is configured unless a mail integration is added separately.
 
 ## Notes

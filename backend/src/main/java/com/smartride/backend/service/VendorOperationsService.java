@@ -35,11 +35,14 @@ public class VendorOperationsService {
     private final JdbcTemplate jdbc;
     private final UserRepository users;
     private final VendorDocumentStorage storage;
+    private final CloudinaryImageStorage cloudinaryImages;
 
-    public VendorOperationsService(JdbcTemplate jdbc, UserRepository users, VendorDocumentStorage storage) {
+    public VendorOperationsService(JdbcTemplate jdbc, UserRepository users, VendorDocumentStorage storage,
+                                   CloudinaryImageStorage cloudinaryImages) {
         this.jdbc = jdbc;
         this.users = users;
         this.storage = storage;
+        this.cloudinaryImages = cloudinaryImages;
     }
 
     @Transactional(readOnly = true)
@@ -189,7 +192,7 @@ public class VendorOperationsService {
         long vendorId = requireApprovedVendor(email).getId();
         requireOwnedVehicle(vendorId, vehicleId);
         return normalizedRows(jdbc.queryForList("""
-                SELECT id, media_type, original_name, content_type, uploaded_at,
+                SELECT id, media_type, original_name, content_type, uploaded_at, secure_url, cloudinary_public_id,
                        '/api/vendor/vehicles/' || vehicle_id || '/media/' || id AS download_url
                 FROM vehicle_media
                 WHERE vehicle_id = ?
@@ -204,7 +207,7 @@ public class VendorOperationsService {
                                                         List<MultipartFile> insuranceDocuments,
                                                         List<MultipartFile> pucDocuments) {
         long vendorId = requireApprovedVendor(email).getId();
-        requireEditableVehicle(vendorId, vehicleId);
+        requireOwnedVehicle(vendorId, vehicleId);
 
         Map<String, List<MultipartFile>> uploads = new LinkedHashMap<>();
         uploads.put("PHOTO", nonEmpty(photos));
@@ -237,13 +240,15 @@ public class VendorOperationsService {
                         "SELECT storage_key FROM vehicle_media WHERE vehicle_id = ? AND media_type = ?",
                         String.class, vehicleId, type));
                 for (MultipartFile file : files) {
-                    VendorDocumentStorage.StoredFile stored;
                     try {
-                        stored = storage.store(file, "PHOTO".equals(type));
+                        String folder = "PHOTO".equals(type)
+                                ? "smartride/vehicles/photos" : "smartride/vehicles/documents";
+                        CloudinaryImageStorage.StoredAsset stored = cloudinaryImages.store(file, folder, "PHOTO".equals(type));
+                        staged.add(new StagedMedia(type, stored.originalName(), "cloudinary:" + stored.resourceType() + ":" + stored.publicId(),
+                                stored.contentType(), stored.secureUrl(), stored.resourceType()));
                     } catch (IllegalArgumentException exception) {
                         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage(), exception);
                     }
-                    staged.add(new StagedMedia(type, safeOriginalName(file), stored));
                 }
             }
 
@@ -253,18 +258,19 @@ public class VendorOperationsService {
             }
             for (StagedMedia media : staged) {
                 jdbc.update("""
-                        INSERT INTO vehicle_media (vehicle_id, media_type, storage_key, original_name, content_type)
-                        VALUES (?, ?, ?, ?, ?)
-                        """, vehicleId, media.type(), media.file().key(), media.originalName(),
-                        media.file().contentType());
+                        INSERT INTO vehicle_media (vehicle_id, media_type, storage_key, cloudinary_public_id,
+                                                   secure_url, original_name, content_type)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, vehicleId, media.type(), media.storageKey(), media.publicId(), media.secureUrl(), media.originalName(),
+                        media.contentType());
             }
         } catch (RuntimeException exception) {
-            deleteStoredFiles(staged.stream().map(media -> media.file().key()).toList());
+            deleteStoredFiles(staged.stream().map(StagedMedia::storageKey).toList());
             throw exception;
         }
 
         List<String> previousKeys = oldKeys.values().stream().flatMap(List::stream).toList();
-        List<String> newKeys = staged.stream().map(media -> media.file().key()).toList();
+        List<String> newKeys = staged.stream().map(StagedMedia::storageKey).toList();
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
@@ -285,14 +291,39 @@ public class VendorOperationsService {
         requireOwnedVehicle(vendorId, vehicleId);
         try {
             Map<String, Object> media = normalized(jdbc.queryForMap("""
-                    SELECT storage_key, original_name, content_type
+                    SELECT storage_key, original_name, content_type, cloudinary_public_id, secure_url
                     FROM vehicle_media WHERE id = ? AND vehicle_id = ?
                     """, mediaId, vehicleId));
             return new VehicleMediaFile(String.valueOf(media.get("storage_key")),
-                    String.valueOf(media.get("original_name")), String.valueOf(media.get("content_type")));
+                    String.valueOf(media.get("original_name")), String.valueOf(media.get("content_type")),
+                    (String) media.get("cloudinary_public_id"), (String) media.get("secure_url"));
         } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vehicle file not found");
         }
+    }
+
+    @Transactional
+    public void deleteVehicleMedia(String email, long vehicleId, long mediaId) {
+        long vendorId = requireApprovedVendor(email).getId();
+        requireOwnedVehicle(vendorId, vehicleId);
+        Map<String, Object> row;
+        try {
+            row = normalized(jdbc.queryForMap("SELECT storage_key, cloudinary_public_id, content_type FROM vehicle_media WHERE id = ? AND vehicle_id = ?",
+                    mediaId, vehicleId));
+        } catch (org.springframework.dao.EmptyResultDataAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vehicle media not found");
+        }
+        String key = String.valueOf(row.get("storage_key"));
+        if (key.startsWith("cloudinary:image:") || key.startsWith("cloudinary:raw:")) {
+            if (row.get("cloudinary_public_id") == null) throw new ResponseStatusException(HttpStatus.CONFLICT, "Cloudinary publicId is missing");
+            cloudinaryImages.delete(String.valueOf(row.get("cloudinary_public_id")), key.startsWith("cloudinary:image:") ? "image" : "raw");
+        } else if (CloudinaryImageStorage.isCloudinaryKey(key)) {
+            String publicId = row.get("cloudinary_public_id") == null ? legacyPublicId(key) : String.valueOf(row.get("cloudinary_public_id"));
+            cloudinaryImages.delete(publicId, String.valueOf(row.get("content_type")).startsWith("image/") ? "image" : "raw");
+        } else {
+            storage.delete(key);
+        }
+        jdbc.update("DELETE FROM vehicle_media WHERE id = ? AND vehicle_id = ?", mediaId, vehicleId);
     }
 
     @Transactional
@@ -441,7 +472,15 @@ public class VendorOperationsService {
                        fuel_type, transmission, seating_capacity, mileage, features, daily_rate, hourly_rate,
                        security_deposit, km_limit_per_day, extra_km_charge, with_driver_rate,
                        city, location, availability_status, approval_status,
-                       approval_reason, description, created_at
+                       approval_reason, description, created_at,
+                       COALESCE(
+                         (SELECT media.secure_url FROM vehicle_media media
+                          WHERE media.vehicle_id = vehicles.id AND media.media_type = 'PHOTO'
+                            AND media.secure_url IS NOT NULL ORDER BY media.id LIMIT 1),
+                         (SELECT '/api/v1/vehicles/' || vehicles.id || '/photos/' || media.id
+                          FROM vehicle_media media WHERE media.vehicle_id = vehicles.id AND media.media_type = 'PHOTO'
+                          ORDER BY media.id LIMIT 1)
+                       ) AS image_url
                 FROM vehicles WHERE vendor_id = ?
                 """);
         List<Object> args = new ArrayList<>();
@@ -532,10 +571,24 @@ public class VendorOperationsService {
         return name.length() > 255 ? name.substring(name.length() - 255) : name;
     }
 
+    private static String legacyPublicId(String key) {
+        int separator = key.indexOf(':', "cloudinary:".length());
+        if (separator < 0 || separator == key.length() - 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "Cloudinary publicId is missing");
+        return key.substring(separator + 1);
+    }
+
     private void deleteStoredFiles(List<String> keys) {
         for (String key : keys) {
             try {
-                storage.delete(key);
+                if (key.startsWith("cloudinary:image:") || key.startsWith("cloudinary:raw:")) {
+                    int marker = key.indexOf(':', 11);
+                    String resourceType = key.substring(11, marker);
+                    cloudinaryImages.delete(key.substring(marker + 1), resourceType);
+                } else if (CloudinaryImageStorage.isCloudinaryKey(key)) {
+                    cloudinaryImages.delete(key);
+                } else {
+                    storage.delete(key);
+                }
             } catch (RuntimeException exception) {
                 LOGGER.warn("Could not clean up vehicle media file {}", key, exception);
             }
@@ -565,6 +618,10 @@ public class VendorOperationsService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private record StagedMedia(String type, String originalName, VendorDocumentStorage.StoredFile file) { }
-    public record VehicleMediaFile(String storageKey, String originalName, String contentType) { }
+    private record StagedMedia(String type, String originalName, String storageKey, String contentType,
+                               String secureUrl, String resourceType) {
+        public String publicId() { return storageKey.substring(storageKey.indexOf(':', 11) + 1); }
+    }
+    public record VehicleMediaFile(String storageKey, String originalName, String contentType,
+                                   String publicId, String secureUrl) { }
 }

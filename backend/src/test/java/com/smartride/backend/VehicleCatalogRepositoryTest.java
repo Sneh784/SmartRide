@@ -63,7 +63,8 @@ class VehicleCatalogRepositoryTest {
                     media_type VARCHAR(30),
                     storage_key VARCHAR(80),
                     original_name VARCHAR(255),
-                    content_type VARCHAR(100)
+                    content_type VARCHAR(100),
+                    secure_url VARCHAR(1000)
                 )
                 """);
         jdbcTemplate.execute("""

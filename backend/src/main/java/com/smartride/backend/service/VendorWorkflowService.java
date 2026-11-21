@@ -46,12 +46,12 @@ public class VendorWorkflowService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final JdbcTemplate jdbc;
-    private final VendorDocumentStorage storage;
+    private final CloudinaryImageStorage cloudinary;
     private final ApprovalEmailNotificationService approvalEmails;
 
     public VendorWorkflowService(VendorApplicationRepository applications, VendorDocumentRepository documents,
                                  UserRepository users, RoleRepository roles, PasswordEncoder passwordEncoder,
-                                 JwtService jwtService, JdbcTemplate jdbc, VendorDocumentStorage storage,
+                                 JwtService jwtService, JdbcTemplate jdbc, CloudinaryImageStorage cloudinary,
                                  ApprovalEmailNotificationService approvalEmails) {
         this.applications = applications;
         this.documents = documents;
@@ -60,7 +60,7 @@ public class VendorWorkflowService {
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.jdbc = jdbc;
-        this.storage = storage;
+        this.cloudinary = cloudinary;
         this.approvalEmails = approvalEmails;
     }
 
@@ -118,7 +118,7 @@ public class VendorWorkflowService {
         application.setSubmittedAt(LocalDateTime.now());
         VendorApplication savedApplication = applications.saveAndFlush(application);
 
-        List<String> storedKeys = new ArrayList<>();
+        List<CloudinaryImageStorage.StoredAsset> storedKeys = new ArrayList<>();
         try {
             saveDocument(savedApplication, "IDENTITY_PROOF", identityProof, false, storedKeys);
             saveDocument(savedApplication, "PAN_CARD", panCard, false, storedKeys);
@@ -133,7 +133,8 @@ public class VendorWorkflowService {
                     """, "New vendor application", user.getFullName() + " submitted a vendor application",
                     savedApplication.getId());
         } catch (RuntimeException exception) {
-            storedKeys.forEach(storage::delete);
+            storedKeys.stream().filter(java.util.Objects::nonNull)
+                    .forEach(asset -> cloudinary.delete(asset.publicId(), asset.resourceType()));
             throw exception;
         }
 
@@ -197,24 +198,21 @@ public class VendorWorkflowService {
         User user = requireVendor(email);
         VendorApplication application = applications.findByUserId(user.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendor application not found"));
-        VendorDocumentStorage.StoredFile stored;
-        try {
-            stored = storage.store(file, false);
-        } catch (IllegalArgumentException exception) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage(), exception);
-        }
+        CloudinaryImageStorage.StoredAsset stored = cloudinary.store(file, "smartride/vendors/documents", false);
 
         VendorDocument document = new VendorDocument();
         document.setApplication(application);
         document.setDocumentType(normalizedType);
-        document.setStorageKey(stored.key());
-        document.setOriginalName(normalizedType + stored.extension());
+        document.setStorageKey(stored.publicId());
+        document.setCloudinaryPublicId(stored.publicId());
+        document.setSecureUrl(stored.secureUrl());
+        document.setOriginalName(stored.originalName());
         document.setContentType(stored.contentType());
         document.setUploadedAt(LocalDateTime.now());
         try {
             documents.save(document);
         } catch (RuntimeException exception) {
-            storage.delete(stored.key());
+            cloudinary.delete(stored.publicId(), stored.resourceType());
             throw exception;
         }
 
@@ -222,7 +220,7 @@ public class VendorWorkflowService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCompletion(int status) {
-                    if (status != STATUS_COMMITTED) storage.delete(stored.key());
+                    if (status != STATUS_COMMITTED) cloudinary.delete(stored.publicId(), stored.resourceType());
                 }
             });
         }
@@ -435,16 +433,29 @@ public class VendorWorkflowService {
         return requireVendor(email).getId();
     }
 
+    @Transactional
+    public void deleteDocument(String email, long documentId) {
+        VendorDocument document = getDocument(vendorUserId(email), documentId, false);
+        if (document.getCloudinaryPublicId() == null || document.getCloudinaryPublicId().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Document has no Cloudinary publicId");
+        }
+        cloudinary.delete(document.getCloudinaryPublicId(), document.getContentType().startsWith("image/") ? "image" : "raw");
+        documents.delete(document);
+    }
+
     private void saveDocument(VendorApplication application, String type, MultipartFile file, boolean imageOnly,
-                              List<String> storedKeys) {
+                              List<CloudinaryImageStorage.StoredAsset> storedKeys) {
         if (file == null || file.isEmpty()) return;
-        VendorDocumentStorage.StoredFile stored = storage.store(file, imageOnly);
-        storedKeys.add(stored.key());
+        CloudinaryImageStorage.StoredAsset stored = cloudinary.store(file,
+                imageOnly ? "smartride/vendors/profile" : "smartride/vendors/documents", imageOnly);
+        storedKeys.add(stored);
         VendorDocument document = new VendorDocument();
         document.setApplication(application);
         document.setDocumentType(type);
-        document.setStorageKey(stored.key());
-        document.setOriginalName(type + stored.extension());
+        document.setStorageKey(stored.publicId());
+        document.setCloudinaryPublicId(stored.publicId());
+        document.setSecureUrl(stored.secureUrl());
+        document.setOriginalName(stored.originalName());
         document.setContentType(stored.contentType());
         document.setUploadedAt(LocalDateTime.now());
         documents.save(document);
@@ -489,6 +500,8 @@ public class VendorWorkflowService {
         item.put("uploadedAt", document.getUploadedAt());
         item.put("downloadUrl", (admin ? "/api/admin/vendors/documents/" : "/api/vendor/documents/")
                 + document.getId());
+        item.put("secureUrl", document.getSecureUrl());
+        item.put("publicId", document.getCloudinaryPublicId());
         return item;
     }
 
