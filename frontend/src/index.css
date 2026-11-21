@@ -49,4 +49,29 @@ body {
   .shadow-brand {
     box-shadow: 0 14px 32px rgba(37, 99, 235, 0.24);
   }
+
+  .vehicle-filter-scrollbar {
+    scrollbar-width: auto;
+    scrollbar-color: #94a3b8 #e2e8f0;
+  }
+
+  .vehicle-filter-scrollbar::-webkit-scrollbar {
+    width: 12px;
+  }
+
+  .vehicle-filter-scrollbar::-webkit-scrollbar-track {
+    border-radius: 9999px;
+    background: #e2e8f0;
+  }
+
+  .vehicle-filter-scrollbar::-webkit-scrollbar-thumb {
+    min-height: 36px;
+    border: 3px solid #e2e8f0;
+    border-radius: 9999px;
+    background: #94a3b8;
+  }
+
+  .vehicle-filter-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+  }
 }

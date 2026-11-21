@@ -66,6 +66,26 @@ public class CustomerBookingService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "This vehicle is already requested or reserved for those dates");
         }
+        Integer assignmentConflicts = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM fleet_vehicle_assignments
+                WHERE vehicle_id = ?
+                  AND status IN ('PENDING', 'ASSIGNED', 'IN_PROGRESS')
+                  AND start_at < ? AND (end_at IS NULL OR end_at > ?)
+                """, Integer.class, request.vehicleId(), request.returnDate(), request.pickupDate());
+        if (assignmentConflicts != null && assignmentConflicts > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This vehicle is assigned during those dates");
+        }
+        Integer maintenanceConflicts = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM fleet_maintenance_records
+                WHERE vehicle_id = ?
+                  AND status IN ('SCHEDULED', 'IN_PROGRESS')
+                  AND scheduled_at < ? AND (completed_at IS NULL OR completed_at > ?)
+                """, Integer.class, request.vehicleId(), request.returnDate(), request.pickupDate());
+        if (maintenanceConflicts != null && maintenanceConflicts > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This vehicle is scheduled for maintenance during those dates");
+        }
 
         long billableDays = Math.max(1, (rentalDuration.toSeconds() + 86_399) / 86_400);
         BigDecimal amount = dailyRate.multiply(BigDecimal.valueOf(billableDays)).setScale(2);
@@ -202,8 +222,7 @@ public class CustomerBookingService {
                     WHERE id = ?
                       AND UPPER(COALESCE(approval_status, 'PENDING')) = 'APPROVED'
                       AND UPPER(COALESCE(availability_status, 'UNAVAILABLE')) = 'AVAILABLE'
-                      AND UPPER(COALESCE(operational_status, 'AVAILABLE'))
-                          NOT IN ('INACTIVE', 'ASSIGNED', 'ON_RENT', 'UNDER_MAINTENANCE')
+                      AND UPPER(COALESCE(operational_status, 'AVAILABLE')) <> 'INACTIVE'
                     """ + lockClause, vehicleId));
         } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND,

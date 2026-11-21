@@ -4,7 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 
 const navItems = [
   { label: 'Home', to: '/' },
-  { label: 'Browse Vehicles', to: '/#popular-vehicles' },
+  { label: 'Browse Vehicles', to: '/vehicles' },
   { label: 'Categories', to: '/#categories' },
   { label: 'About Us', to: '/#why-smarride' },
   { label: 'Contact', to: '/#contact' },
@@ -25,7 +25,7 @@ function NavigationLinks({ onNavigate, className = '' }) {
           ? pathname === '/' && !hash
           : to.startsWith('/#')
             ? pathname === '/' && hash === to.slice(1)
-            : pathname === to;
+            : pathname === to || (to === '/vehicles' && pathname.startsWith('/vehicles/'));
 
         return (
           <Link

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Activity, ArrowDownToLine, CalendarDays, CarFront, CircleAlert, CreditCard, FileCheck2, LoaderCircle, Search, ShieldCheck, Users } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { adminApi } from '../../api/adminApi';
+import PasswordInput from '../../components/ui/PasswordInput';
 
 const read = (row, key) => row?.[key] ?? row?.[key.toLowerCase()] ?? row?.[key.replace(/[A-Z]/g,(c)=>`_${c.toLowerCase()}`)];
 const cash = (value) => new Intl.NumberFormat(undefined,{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Number(value)||0);
@@ -161,7 +162,39 @@ function AdminSettings(){
   const saveSetting=(key)=>run(()=>adminApi.saveSetting(key,values[key]),'Platform setting saved.');
   const savePassword=e=>{e.preventDefault();run(()=>adminApi.changePassword({currentPassword,newPassword}), 'Password changed.');setCurrentPassword('');setNewPassword('');};
   if(loading)return <Loading/>;
-  return <><Heading title="Admin Settings" subtitle="Manage your administrator profile, password, and platform policy values."/><Banner error={error||actionError} onRetry={reload}/>{message&&<p role="status" className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</p>}<div className="grid gap-5 xl:grid-cols-2"><form onSubmit={saveProfile} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5"><h2 className="font-bold">Administrator profile</h2><p className="text-sm text-slate-500">{read(read(data,'profile'),'email')}</p><label className="block text-sm font-semibold">Display name<input required minLength={2} maxLength={120} value={name} onChange={e=>setName(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-normal"/></label><button className="rounded-xl bg-[#172033] px-4 py-2 text-sm font-bold text-white">Save profile</button></form><form onSubmit={savePassword} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5"><h2 className="font-bold">Change password</h2><label className="block text-sm font-semibold">Current password<input required type="password" autoComplete="current-password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-normal"/></label><label className="block text-sm font-semibold">New password<input required minLength={12} type="password" autoComplete="new-password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-normal"/></label><button className="rounded-xl bg-[#172033] px-4 py-2 text-sm font-bold text-white">Update password</button></form></div><section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5"><h2 className="mb-4 font-bold">Platform settings</h2><div className="grid gap-4 md:grid-cols-2">{[['rentalPolicy','Rental policy'],['cancellationPolicy','Cancellation policy'],['securityDeposit','Security deposit'],['notificationPreferences','Notification preferences']].map(([key,label])=><form key={key} onSubmit={e=>{e.preventDefault();saveSetting(key);}} className="space-y-2"><label className="block text-sm font-semibold">{label}<textarea required maxLength={2000} rows={3} value={values[key]} onChange={e=>setValues(v=>({...v,[key]:e.target.value}))} className="mt-1 w-full rounded-xl border border-slate-200 p-3 font-normal"/></label><button className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold">Save {label.toLowerCase()}</button></form>)}</div></section></>;
+  return <>
+    <Heading title="Admin Settings" subtitle="Manage your administrator profile, password, and platform policy values." />
+    <Banner error={error || actionError} onRetry={reload} />
+    {message && <p role="status" className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</p>}
+    <div className="grid gap-5 xl:grid-cols-2">
+      <form onSubmit={saveProfile} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
+        <h2 className="font-bold">Administrator profile</h2>
+        <p className="text-sm text-slate-500">{read(read(data, 'profile'), 'email')}</p>
+        <label className="block text-sm font-semibold">Display name<input required minLength={2} maxLength={120} value={name} onChange={(event) => setName(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-normal" /></label>
+        <button className="rounded-xl bg-[#172033] px-4 py-2 text-sm font-bold text-white">Save profile</button>
+      </form>
+      <form onSubmit={savePassword} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
+        <h2 className="font-bold">Change password</h2>
+        <label className="block text-sm font-semibold">Current password<PasswordInput required autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} visibilityLabel="current password" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-normal" /></label>
+        <label className="block text-sm font-semibold">New password<PasswordInput required minLength={12} autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} visibilityLabel="new password" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-normal" /></label>
+        <button className="rounded-xl bg-[#172033] px-4 py-2 text-sm font-bold text-white">Update password</button>
+      </form>
+    </div>
+    <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5">
+      <h2 className="mb-4 font-bold">Platform settings</h2>
+      <div className="grid gap-4 md:grid-cols-2">
+        {[
+          ['rentalPolicy', 'Rental policy'], ['cancellationPolicy', 'Cancellation policy'],
+          ['securityDeposit', 'Security deposit'], ['notificationPreferences', 'Notification preferences'],
+        ].map(([key, label]) => (
+          <form key={key} onSubmit={(event) => { event.preventDefault(); saveSetting(key); }} className="space-y-2">
+            <label className="block text-sm font-semibold">{label}<textarea required maxLength={2000} rows={3} value={values[key]} onChange={(event) => setValues((current) => ({ ...current, [key]: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-200 p-3 font-normal" /></label>
+            <button className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold">Save {label.toLowerCase()}</button>
+          </form>
+        ))}
+      </div>
+    </section>
+  </>;
 }
 
 

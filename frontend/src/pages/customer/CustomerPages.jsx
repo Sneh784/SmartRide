@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, Bell, CalendarDays, CarFront, CheckCircle2, CircleAlert, Clock3, CreditCard, Heart, LoaderCircle, MapPin, Search, SlidersHorizontal, Star, UserRound, X } from 'lucide-react';
+import { ArrowRight, Bell, CalendarDays, CarFront, CheckCircle2, CircleAlert, Clock3, CreditCard, Heart, LoaderCircle, MapPin, Star, UserRound, X } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { bookingApi } from '../../api/bookingApi';
 import { customerApi } from '../../api/customerApi';
 import { paymentApi } from '../../api/paymentApi';
+import BrowseVehicles from '../BrowseVehicles';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../hooks/useToast';
 import { openRazorpayCheckout } from '../../utils/razorpay';
@@ -84,17 +85,24 @@ export function CustomerVehicleDetails() {
   if (error) return <ErrorState message={error} retry={reload} />;
   const dailyRate = vehicle.dailyrate || vehicle.daily_rate || 0;
   const withDriverRate = vehicle.withdriverrate || vehicle.with_driver_rate;
+  const canBook = String(vehicle.availabilitystatus || vehicle.availability_status || '').toUpperCase() === 'AVAILABLE'
+    && String(vehicle.operationalstatus || vehicle.operational_status || 'AVAILABLE').toUpperCase() !== 'INACTIVE';
+  const availableNow = vehicle.isavailablenow ?? vehicle.isAvailableNow;
+  const image = (vehicle.imageurl || vehicle.imageUrl)
+    ? new URL(vehicle.imageurl || vehicle.imageUrl,
+      import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1').toString()
+    : '';
   return (
     <div className="mx-auto max-w-5xl">
       <Link to="/customer/vehicles" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#B54700]"><ArrowRight className="rotate-180" size={16} />Back to vehicles</Link>
       <div className="grid gap-6 lg:grid-cols-[1.15fr_.85fr]">
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex h-72 items-center justify-center bg-gradient-to-br from-slate-100 via-orange-50 to-orange-100 text-[#E85D00]"><CarFront size={100} strokeWidth={1.2} /></div>
+          <div className="relative flex h-72 items-center justify-center overflow-hidden bg-gradient-to-br from-slate-100 via-orange-50 to-orange-100 text-[#E85D00]">{image ? <img src={image} alt={vehicle.title || vehicle.brand || 'Vehicle'} className="absolute inset-0 h-full w-full object-cover" /> : <CarFront size={100} strokeWidth={1.2} />}</div>
           <div className="p-6 sm:p-8">
             <p className="text-xs font-bold uppercase tracking-wider text-[#E85D00]">{vehicle.category || 'Available vehicle'}</p>
             <h1 className="mt-2 text-3xl font-black text-slate-900">{vehicle.title || `${vehicle.brand || ''} ${vehicle.model || ''}`}</h1>
             <p className="mt-3 flex items-center gap-2 text-sm text-slate-500"><MapPin size={16} />{vehicle.city || vehicle.location || 'Location not listed'}</p>
-            <p className="mt-6 text-sm leading-6 text-slate-600">This vehicle is approved and currently available. Choose your trip dates to send a reservation request. The vendor will confirm the booking before online payment is enabled.</p>
+            <p className="mt-6 text-sm leading-6 text-slate-600">{availableNow ? 'This approved vehicle is currently available.' : 'This approved vehicle is not available right now; choose dates to check future availability.'} The vendor will confirm the booking before online payment is enabled.</p>
           </div>
         </section>
         <aside className="h-fit rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -102,8 +110,10 @@ export function CustomerVehicleDetails() {
           <div className="mt-4 flex items-baseline justify-between gap-4"><span className="text-sm text-slate-600">Self drive</span><strong className="text-2xl font-black text-slate-900">{money(dailyRate)}<span className="text-xs font-medium text-slate-500"> / day</span></strong></div>
           {withDriverRate && <div className="mt-3 flex items-baseline justify-between gap-4"><span className="text-sm text-slate-600">With driver</span><strong className="text-lg font-bold text-slate-900">{money(withDriverRate)}<span className="text-xs font-medium text-slate-500"> / day</span></strong></div>}
           {Number(vehicle.rating) > 0 && <p className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-amber-600"><Star size={16} fill="currentColor" />{Number(vehicle.rating).toFixed(1)} customer rating</p>}
-          <Link to={`/booking?vehicleId=${vehicle.id}`} className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6B00] px-5 py-3.5 text-sm font-bold text-white hover:bg-[#E85D00]">Choose dates <ArrowRight size={17} /></Link>
-          <p className="mt-3 text-center text-xs text-slate-400">No payment is taken until the vendor confirms availability.</p>
+          {canBook
+            ? <Link to={`/booking?vehicleId=${vehicle.id}`} className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6B00] px-5 py-3.5 text-sm font-bold text-white hover:bg-[#E85D00]">Choose dates <ArrowRight size={17} /></Link>
+            : <p className="mt-7 rounded-xl bg-slate-100 px-5 py-3.5 text-center text-sm font-semibold text-slate-500">This vehicle is not accepting bookings.</p>}
+          {canBook && <p className="mt-3 text-center text-xs text-slate-400">No payment is taken until the vendor confirms availability.</p>}
         </aside>
       </div>
     </div>
@@ -289,99 +299,7 @@ export function CustomerBookings({ mode = 'all' }) {
 }
 
 export function CustomerVehicles() {
-  const { data, loading, error, reload } = useRequest(customerApi.vehicles);
-  const toast = useToast();
-  const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('');
-  const [sort, setSort] = useState('featured');
-  const [saved, setSaved] = useState(new Set());
-  const categories = [...new Set((data || []).map((vehicle) => vehicle.category).filter(Boolean))].sort();
-  const vehicleRate = (vehicle) => Number(vehicle.dailyrate || vehicle.dailyRate || 0);
-  const maxRate = Math.max(0, ...(data || []).map(vehicleRate));
-  const [priceLimit, setPriceLimit] = useState(null);
-  const visible = (data || [])
-    .filter((vehicle) => `${vehicle.title} ${vehicle.brand || ''} ${vehicle.model || ''} ${vehicle.city || ''}`.toLowerCase().includes(query.toLowerCase()))
-    .filter((vehicle) => !category || vehicle.category === category)
-    .filter((vehicle) => priceLimit == null || vehicleRate(vehicle) <= priceLimit)
-    .sort((left, right) => sort === 'price-low' ? vehicleRate(left) - vehicleRate(right)
-      : sort === 'price-high' ? vehicleRate(right) - vehicleRate(left)
-        : sort === 'rating' ? Number(right.rating || 0) - Number(left.rating || 0) : 0);
-  useEffect(() => { customerApi.wishlist().then((response) => setSaved(new Set(response.data.map((item) => item.id)))).catch(() => {}); }, []);
-  const toggleSave = async (vehicleId) => {
-    try {
-      if (saved.has(vehicleId)) {
-        await customerApi.removeWishlist(vehicleId);
-        setSaved((previous) => new Set([...previous].filter((id) => id !== vehicleId)));
-        toast.info('Vehicle removed from your wishlist.');
-      } else {
-        await customerApi.addWishlist(vehicleId);
-        setSaved((previous) => new Set([...previous, vehicleId]));
-        toast.success('Vehicle saved to your wishlist.');
-      }
-    } catch (requestError) {
-      toast.error(requestError?.response?.data?.message || 'Could not update your wishlist.');
-    }
-  };
-  if (loading) return <Loading />;
-  return <>
-    <PageTitle eyebrow="Marketplace" title="Find your next ride" text="Search approved vehicles, compare daily rates, and request a rental in a few steps." />
-    <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr]">
-        <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5">
-          <Search size={17} className="text-slate-400" />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search make, model, or city" className="w-full bg-transparent text-sm outline-none" />
-        </label>
-        <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm">
-          <SlidersHorizontal size={17} className="text-slate-400" />
-          <select value={category} onChange={(event) => setCategory(event.target.value)} className="w-full bg-transparent outline-none">
-            <option value="">All categories</option>
-            {categories.map((item) => <option key={item} value={item}>{item}</option>)}
-          </select>
-        </label>
-        <select value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Sort vehicles" className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm">
-          <option value="featured">Recommended</option><option value="price-low">Price: low to high</option>
-          <option value="price-high">Price: high to low</option><option value="rating">Top rated</option>
-        </select>
-      </div>
-      {maxRate > 0 && (
-        <div className="mt-4 flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-600">
-          Max daily rate: {money(priceLimit ?? maxRate)}
-          <input type="range" min="0" max={maxRate} step="100" value={priceLimit ?? maxRate} onChange={(event) => setPriceLimit(Number(event.target.value))} className="min-w-40 flex-1 accent-[#FF6B00]" />
-          <button onClick={() => { setPriceLimit(null); setCategory(''); setQuery(''); setSort('featured'); }} className="text-[#B54700] hover:underline">Reset filters</button>
-        </div>
-      )}
-    </section>
-    {error ? <ErrorState message={error} retry={reload} /> : !visible.length ? (
-      <EmptyState title={query || category ? 'No matching vehicles' : 'No vehicles listed yet'} text={query || category ? 'Try widening your search or clearing the filters.' : 'Vehicles will appear here when approved and available.'} />
-    ) : (
-      <div>
-        <p className="mb-3 text-sm text-slate-500">{visible.length} available {visible.length === 1 ? 'vehicle' : 'vehicles'}</p>
-        <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-          {visible.map((vehicle) => (
-            <article key={vehicle.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
-              <div className="flex h-36 items-start justify-between bg-gradient-to-br from-slate-100 via-orange-50 to-orange-100 p-4">
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/90 text-[#E85D00] shadow-sm"><CarFront size={23} /></span>
-                <button onClick={() => toggleSave(vehicle.id)} aria-label={saved.has(vehicle.id) ? 'Remove from wishlist' : 'Add to wishlist'} className={`rounded-full bg-white/90 p-2 shadow-sm ${saved.has(vehicle.id) ? 'text-pink-600' : 'text-slate-400 hover:text-pink-600'}`}><Heart size={18} fill={saved.has(vehicle.id) ? 'currentColor' : 'none'} /></button>
-              </div>
-              <div className="p-5">
-                <p className="text-xs font-bold uppercase tracking-wider text-[#E85D00]">{vehicle.category || 'Vehicle'}</p>
-                <h2 className="mt-1 text-lg font-bold text-slate-900">{vehicle.title || `${vehicle.brand || ''} ${vehicle.model || ''}`}</h2>
-                <p className="mt-2 flex items-center gap-1 text-sm text-slate-500"><MapPin size={15} />{vehicle.city || vehicle.location || 'Location not listed'}</p>
-                <div className="mt-5 flex items-end justify-between border-t border-slate-100 pt-4">
-                  <div><p className="text-xs text-slate-500">Daily rate</p><p className="mt-1 text-xl font-extrabold text-slate-900">{money(vehicleRate(vehicle))}<span className="text-xs font-medium text-slate-500"> / day</span></p></div>
-                  {Number(vehicle.rating) > 0 && <span className="inline-flex items-center gap-1 text-sm font-bold text-amber-600"><Star size={15} fill="currentColor" />{Number(vehicle.rating).toFixed(1)}</span>}
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <Link to={`/customer/vehicles/${vehicle.id}`} className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Details</Link>
-                  <Link to={`/booking?vehicleId=${vehicle.id}`} className="inline-flex items-center justify-center gap-1 rounded-xl bg-[#FF6B00] px-3 py-2.5 text-sm font-bold text-white transition hover:bg-[#E85D00]">Book <ArrowRight size={15} /></Link>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </div>
-    )}
-  </>;
+  return <BrowseVehicles customerMode />;
 }
 
 export function CustomerWishlist() {

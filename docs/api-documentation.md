@@ -32,6 +32,17 @@ POST /api/v1/auth/refresh
 
 Applications create inactive driver accounts with `PENDING` approval status. They cannot sign in until an administrator approves them.
 
+## Vendor applications
+
+`POST /api/vendor/auth/register` is public and accepts `multipart/form-data`:
+
+- `application`: JSON with personal and business contact details, password, city/state/pincode, and accepted terms/policies.
+- `identityProof`, `panCard`, and `addressProof`: required PDF, PNG, or JPG files.
+- `profileImage`: optional PNG or JPG image.
+- `businessDocument`: optional business registration PDF, PNG, or JPG.
+
+Each file is limited to 5 MB and stored privately. Applications remain pending until an administrator approves them. Configure `SMARTRIDE_VENDOR_UPLOAD_DIR` to choose a private upload location.
+
 ### Admin review
 
 - `GET /api/admin/drivers?status=PENDING&search=...` lists applications and review details.

@@ -3,6 +3,7 @@ import { BadgeCheck, CarFront, CheckCircle2, FileCheck2, ShieldCheck } from 'luc
 import { Link } from 'react-router-dom';
 import { driverApi } from '../api/driverApi';
 import { vehicleCategories } from '../utils/vehicleCategories';
+import PasswordInput from '../components/ui/PasswordInput';
 
 const initialForm = {
   fullName: '',
@@ -36,15 +37,27 @@ function Field({ label, name, value, onChange, required = true, type = 'text', .
       <span className="mb-1.5 block text-sm font-semibold text-slate-700">
         {label}{required && ' *'}
       </span>
-      <input
-        name={name}
-        type={type}
-        value={value}
-        onChange={onChange}
-        required={required}
-        className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-[#FF6B00] focus:ring-2 focus:ring-orange-100"
-        {...props}
-      />
+      {type === 'password' ? (
+        <PasswordInput
+          name={name}
+          value={value}
+          onChange={onChange}
+          required={required}
+          visibilityLabel={label.toLowerCase()}
+          className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-[#FF6B00] focus:ring-2 focus:ring-orange-100"
+          {...props}
+        />
+      ) : (
+        <input
+          name={name}
+          type={type}
+          value={value}
+          onChange={onChange}
+          required={required}
+          className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-[#FF6B00] focus:ring-2 focus:ring-orange-100"
+          {...props}
+        />
+      )}
     </label>
   );
 }

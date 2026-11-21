@@ -57,38 +57,6 @@ public class CustomerPortalRepository {
                 """, customerId));
     }
 
-    public List<Map<String, Object>> findVehicles() {
-        return normalizedRows(jdbcTemplate.queryForList("""
-                SELECT id, title, brand, model, category, city, location,
-                       daily_rate AS dailyRate, with_driver_rate AS withDriverRate,
-                       rating, availability_status AS availabilityStatus
-                FROM vehicles
-                WHERE UPPER(COALESCE(approval_status, 'PENDING')) = 'APPROVED'
-                  AND UPPER(COALESCE(availability_status, 'UNAVAILABLE')) = 'AVAILABLE'
-                  AND UPPER(COALESCE(operational_status, 'AVAILABLE'))
-                      NOT IN ('INACTIVE', 'ASSIGNED', 'ON_RENT', 'UNDER_MAINTENANCE')
-                ORDER BY title
-                """));
-    }
-
-    public Map<String, Object> findAvailableVehicle(long vehicleId) {
-        try {
-            return normalized(jdbcTemplate.queryForMap("""
-                    SELECT id, title, brand, model, category, city, location,
-                           daily_rate AS dailyRate, with_driver_rate AS withDriverRate, rating,
-                           availability_status AS availabilityStatus
-                    FROM vehicles
-                    WHERE id = ?
-                      AND UPPER(COALESCE(approval_status, 'PENDING')) = 'APPROVED'
-                      AND UPPER(COALESCE(availability_status, 'UNAVAILABLE')) = 'AVAILABLE'
-                      AND UPPER(COALESCE(operational_status, 'AVAILABLE'))
-                          NOT IN ('INACTIVE', 'ASSIGNED', 'ON_RENT', 'UNDER_MAINTENANCE')
-                    """, vehicleId));
-        } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vehicle not found or is no longer available");
-        }
-    }
-
     public List<Map<String, Object>> findWishlist(long customerId) {
         return normalizedRows(jdbcTemplate.queryForList("""
                 SELECT v.id, v.title, v.brand, v.model, v.category, v.city,

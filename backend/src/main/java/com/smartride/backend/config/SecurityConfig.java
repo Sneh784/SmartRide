@@ -56,6 +56,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/vendor/**").hasRole("VENDOR")
                 .requestMatchers("/api/fleet-manager/**").hasRole("FLEET_MANAGER")
                 .requestMatchers("/api/v1/auth/**", "/actuator/health").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/vehicles", "/api/v1/vehicles/**").permitAll()
                 .requestMatchers("/api/v1/customer/**").hasRole("CUSTOMER")
                 .anyRequest().authenticated())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

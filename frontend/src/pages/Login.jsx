@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { authApi } from '../api/authApi';
 import { useAuth } from '../context/AuthContext';
+import PasswordInput from '../components/ui/PasswordInput';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -82,13 +83,13 @@ export default function Login() {
             </div>
             <div>
               <label htmlFor="password" className="mb-2 block text-sm font-medium text-slate-700">Password</label>
-              <input
+              <PasswordInput
                 id="password"
                 name="password"
-                type="password"
                 required
                 value={form.password}
                 onChange={handleChange}
+                visibilityLabel="password"
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-[#ff6b00] focus:bg-white"
               />
             </div>
