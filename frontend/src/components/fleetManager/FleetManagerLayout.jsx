@@ -13,6 +13,7 @@ const groups = [
   ['Fleet operations', [
     ['Vehicle management', '/fleet-manager/vehicles', CarFront],
     ['Vehicle assignments', '/fleet-manager/vehicle-assignments', ClipboardList],
+    ['Trip dispatch', '/fleet-manager/trip-dispatch', ClipboardList],
     ['Driver management', '/fleet-manager/drivers', Users],
     ['Vehicle availability', '/fleet-manager/availability', Activity],
     ['Active rentals', '/fleet-manager/active-rentals', CalendarDays],

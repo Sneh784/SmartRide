@@ -1,6 +1,6 @@
-package com.smartride.backend.service;
+package com.smartride.backend.driver.service;
 
-import com.smartride.backend.dto.DriverRegistrationRequest;
+import com.smartride.backend.driver.dto.DriverRegistrationRequest;
 import com.smartride.backend.entity.Role;
 import com.smartride.backend.entity.User;
 import com.smartride.backend.enums.RoleName;

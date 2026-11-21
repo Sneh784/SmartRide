@@ -5,9 +5,18 @@ import { AuthProvider } from './context/AuthContext';
 import Booking from './pages/Booking';
 import BookingSuccess from './pages/BookingSuccess';
 import BrowseVehicles from './pages/BrowseVehicles';
-import DriverDashboard from './pages/DriverDashboard';
-import DriverForm from './pages/DriverForm';
-import DriverLogin from './pages/DriverLogin';
+import DriverDashboard from './driver/pages/DriverDashboard';
+import DriverForm from './driver/pages/DriverForm';
+import DriverLogin from './driver/pages/DriverLogin';
+import DriverLayout from './driver/components/DriverLayout';
+import AssignedBookingsPage from './driver/pages/AssignedBookingsPage';
+import ActiveTripsPage from './driver/pages/ActiveTripsPage';
+import TripHistoryPage from './driver/pages/TripHistoryPage';
+import DriverEarningsPage from './driver/pages/DriverEarningsPage';
+import DriverAvailabilityPage from './driver/pages/DriverAvailabilityPage';
+import DriverDocumentsPage from './driver/pages/DriverDocumentsPage';
+import DriverNotificationsPage from './driver/pages/DriverNotificationsPage';
+import DriverProfilePage from './driver/pages/DriverProfilePage';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -21,7 +30,7 @@ import VendorVehicles from './pages/vendor/VendorVehicles';
 import VendorVehicleForm from './pages/vendor/VendorVehicleForm';
 import { VendorBookings, VendorDocuments, VendorNotifications, VendorPayments, VendorProfile, VendorUnavailablePage } from './pages/vendor/VendorDataPages';
 import RequireVendor from './routes/RequireVendor';
-import RequireDriver from './routes/RequireDriver';
+import RequireDriver from './driver/routes/RequireDriver';
 import RequireFleetManager from './routes/RequireFleetManager';
 import FleetManagerLogin from './pages/fleetManager/FleetManagerLogin';
 import FleetManagerLayout from './components/fleetManager/FleetManagerLayout';
@@ -108,6 +117,7 @@ function App() {
                 <Route path="dashboard" element={<FleetManagerWorkspace />} />
                 <Route path="vehicles" element={<FleetManagerWorkspace />} />
                 <Route path="vehicle-assignments" element={<FleetManagerWorkspace />} />
+                <Route path="trip-dispatch" element={<FleetManagerWorkspace />} />
                 <Route path="drivers" element={<FleetManagerWorkspace />} />
                 <Route path="availability" element={<FleetManagerWorkspace />} />
                 <Route path="active-rentals" element={<FleetManagerWorkspace />} />
@@ -123,7 +133,18 @@ function App() {
               </Route>
             </Route>
             <Route element={<RequireDriver />}>
-              <Route path="/driver/dashboard" element={<DriverDashboard />} />
+              <Route path="/driver" element={<DriverLayout />}>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<DriverDashboard />} />
+                <Route path="assigned-bookings" element={<AssignedBookingsPage />} />
+                <Route path="active-trips" element={<ActiveTripsPage />} />
+                <Route path="trip-history" element={<TripHistoryPage />} />
+                <Route path="earnings" element={<DriverEarningsPage />} />
+                <Route path="availability" element={<DriverAvailabilityPage />} />
+                <Route path="documents" element={<DriverDocumentsPage />} />
+                <Route path="notifications" element={<DriverNotificationsPage />} />
+                <Route path="profile" element={<DriverProfilePage />} />
+              </Route>
               <Route path="/driver-dashboard" element={<Navigate to="/driver/dashboard" replace />} />
             </Route>
             <Route path="/admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />

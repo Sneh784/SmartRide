@@ -1,4 +1,4 @@
-package com.smartride.backend.dto;
+package com.smartride.backend.driver.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Future;

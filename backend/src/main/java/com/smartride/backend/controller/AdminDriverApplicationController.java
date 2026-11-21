@@ -1,6 +1,6 @@
 package com.smartride.backend.controller;
 
-import com.smartride.backend.service.DriverApplicationService;
+import com.smartride.backend.driver.service.DriverApplicationService;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;

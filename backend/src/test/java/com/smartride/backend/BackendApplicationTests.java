@@ -8,7 +8,7 @@ import com.smartride.backend.repository.RoleRepository;
 import com.smartride.backend.repository.UserRepository;
 import com.smartride.backend.repository.VendorApplicationRepository;
 import com.smartride.backend.security.JwtService;
-import com.smartride.backend.service.DriverDocumentStorage;
+import com.smartride.backend.driver.service.DriverDocumentStorage;
 import com.smartride.backend.service.CustomerKycDocumentStorage;
 import com.smartride.backend.service.VendorDocumentStorage;
 import org.junit.jupiter.api.Test;

@@ -1,7 +1,7 @@
-package com.smartride.backend.controller;
+package com.smartride.backend.driver.controller;
 
-import com.smartride.backend.dto.DriverRegistrationRequest;
-import com.smartride.backend.service.DriverApplicationService;
+import com.smartride.backend.driver.dto.DriverRegistrationRequest;
+import com.smartride.backend.driver.service.DriverApplicationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

@@ -75,6 +75,24 @@ Fleet Manager login is available at http://localhost:5173/fleet-manager/login. T
 
 Fleet access grants, assignments, maintenance records, and manager preferences are stored in PostgreSQL. The matching table definitions are included in `database/schema.sql` and are also created by the backend schema initializer.
 
+### Driver dashboard and trip workflow
+
+Approved drivers sign in at `http://localhost:5173/driver/login`; new drivers can apply at `http://localhost:5173/driver/register`. The responsive driver workspace is organized under `frontend/src/driver/` and includes dashboard, assigned bookings, active trips, trip history, earnings estimates, availability, documents, notifications, and profile pages.
+
+An Admin grants Fleet Manager access to approved drivers and vehicles. A Fleet Manager can then assign a confirmed `WITH_DRIVER` booking from Trip Dispatch. Drivers can accept or decline an offer, start an accepted trip, and complete an active trip. Starting a trip sets the driver's availability offline; the driver can switch it back on after the active trip is completed. Fleet Managers cannot dispatch to an offline driver, and assignment windows are checked for conflicts.
+
+Driver endpoints require a valid JWT and the `DRIVER` role. Driver data and trip state are scoped to the authenticated account:
+
+- `GET /api/driver/dashboard`, `GET /api/driver/trips`, `GET /api/driver/trips/{assignmentId}`, and `PUT /api/driver/trips/{assignmentId}/status`
+- `GET/PUT /api/driver/profile` and `GET/PUT /api/driver/availability`
+- `GET /api/driver/earnings`
+- `GET /api/driver/documents`, `POST /api/driver/documents`, and authenticated document view/download endpoints
+- `GET /api/driver/notifications`, `PUT /api/driver/notifications/{id}/read`, and `PUT /api/driver/notifications/read-all`
+
+Driver preferences, additional documents, and notifications are stored in PostgreSQL; schema definitions are in `database/schema.sql` and are also applied by the driver schema initializer. Application verification documents and additional uploads are stored privately under `private-uploads/drivers` by default. Uploads accept PDF, PNG, or JPG files up to 5 MB. Configure `SMARTRIDE_DRIVER_UPLOAD_DIR` to use a persistent, access-controlled directory in deployments.
+
+Earnings are estimates based on the vehicle's with-driver daily rate multiplied by booked days for completed trips. This does not create payouts or payroll records. Trip map links open external directions and do not provide live GPS tracking.
+
 ### Vendor registration and approval
 
 - Public vendor registration: http://localhost:5173/vendor/register

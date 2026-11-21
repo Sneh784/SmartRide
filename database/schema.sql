@@ -92,6 +92,31 @@ CREATE TABLE IF NOT EXISTS customer_support_tickets (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS driver_preferences (
+    user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    is_available BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS driver_documents (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    document_type VARCHAR(40) NOT NULL,
+    storage_key VARCHAR(80) NOT NULL UNIQUE,
+    original_name VARCHAR(255) NOT NULL,
+    content_type VARCHAR(100) NOT NULL,
+    uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS driver_notifications (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(160) NOT NULL,
+    message VARCHAR(1000) NOT NULL,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS admin_audit_log (
     id BIGSERIAL PRIMARY KEY,
     admin_id BIGINT REFERENCES users(id),
@@ -235,6 +260,8 @@ CREATE INDEX IF NOT EXISTS idx_vehicles_city ON vehicles(city);
 CREATE INDEX IF NOT EXISTS idx_bookings_customer ON bookings(customer_id);
 CREATE INDEX IF NOT EXISTS idx_fm_vehicle_access_vehicle ON fleet_manager_vehicle_access(vehicle_id);
 CREATE INDEX IF NOT EXISTS idx_fm_driver_access_driver ON fleet_manager_driver_access(driver_id);
+CREATE INDEX IF NOT EXISTS idx_driver_documents_user ON driver_documents(user_id, uploaded_at);
+CREATE INDEX IF NOT EXISTS idx_driver_notifications_user_read ON driver_notifications(user_id, is_read, created_at);
 CREATE INDEX IF NOT EXISTS idx_fleet_assignments_vehicle_dates ON fleet_vehicle_assignments(vehicle_id, start_at, end_at);
 CREATE INDEX IF NOT EXISTS idx_fleet_assignments_driver_dates ON fleet_vehicle_assignments(driver_id, start_at, end_at);
 CREATE INDEX IF NOT EXISTS idx_fleet_maintenance_vehicle_status ON fleet_maintenance_records(vehicle_id, status, scheduled_at);

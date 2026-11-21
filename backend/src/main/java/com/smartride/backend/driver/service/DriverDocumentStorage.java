@@ -1,4 +1,4 @@
-package com.smartride.backend.service;
+package com.smartride.backend.driver.service;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;

@@ -113,6 +113,7 @@ function Dashboard() {
     ['Total fleet vehicles', 'total_vehicles', CarFront],
     ['Available vehicles', 'available_vehicles', CarFront],
     ['Assigned vehicles', 'assigned_vehicles', ClipboardList],
+    ['Trips needing a driver', 'unassigned_driver_trips', CalendarDays],
     ['Vehicles on rent', 'vehicles_on_rent', CalendarDays],
     ['Under maintenance', 'vehicles_under_maintenance', Wrench],
     ['Available drivers', 'available_drivers', Activity],
@@ -125,7 +126,7 @@ function Dashboard() {
     <Banner error={error} onRetry={reload} />
     <section className="mb-6 flex flex-col justify-between gap-4 rounded-2xl bg-[#172033] p-6 text-white sm:flex-row sm:items-center sm:p-8">
       <div><p className="text-xs font-bold uppercase tracking-[.18em] text-orange-300">Fleet Manager workspace</p><h1 className="mt-2 text-2xl font-black sm:text-3xl">Welcome back, {user?.name || 'Fleet Manager'}!</h1><p className="mt-2 max-w-2xl text-sm text-slate-300">Monitor fleet operations, manage vehicle assignments, schedule maintenance, and track fleet performance.</p></div>
-      <div className="flex flex-wrap gap-2"><Link to="/fleet-manager/vehicle-assignments" className="rounded-xl bg-[#FF6B00] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#E85D00]">Assign vehicle</Link><Link to="/fleet-manager/maintenance/schedule" className="rounded-xl border border-white/20 px-4 py-2.5 text-sm font-bold hover:bg-white/10">Schedule service</Link><Link to="/fleet-manager/reports" className="rounded-xl border border-white/20 px-4 py-2.5 text-sm font-bold hover:bg-white/10">Generate report</Link></div>
+      <div className="flex flex-wrap gap-2"><Link to="/fleet-manager/trip-dispatch" className="rounded-xl bg-[#FF6B00] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#E85D00]">Dispatch driver trips</Link><Link to="/fleet-manager/vehicle-assignments" className="rounded-xl border border-white/20 px-4 py-2.5 text-sm font-bold hover:bg-white/10">Assign vehicle</Link><Link to="/fleet-manager/maintenance/schedule" className="rounded-xl border border-white/20 px-4 py-2.5 text-sm font-bold hover:bg-white/10">Schedule service</Link></div>
     </section>
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{stats.map(([label, key, Icon]) => <article key={key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-[#B54700]"><Icon size={20} /></span><p className="mt-4 text-sm text-slate-500">{label}</p><p className="mt-1 text-2xl font-black text-slate-900">{Number(read(data, key)) || 0}</p></article>)}</div>
     <div className="mt-6 grid gap-5 xl:grid-cols-2">
@@ -199,6 +200,63 @@ function AssignmentPage() {
     </form>
     {loading ? <Loading /> : <DataTable rows={Array.isArray(data) ? data : []} columns={[[ 'id', 'Assignment' ], ['vehicle_name', 'Vehicle'], ['driver_name', 'Driver'], ['start_at', 'Start'], ['end_at', 'End'], ['location', 'Location'], ['purpose', 'Purpose'], ['status', 'Status']]}
       actions={(row) => <div className="flex gap-2">{read(row, 'status') === 'ASSIGNED' && <button onClick={() => statusAction(row, 'IN_PROGRESS')} className="rounded-lg bg-orange-50 px-2.5 py-1.5 text-xs font-bold text-[#B54700]">Start</button>}{['ASSIGNED', 'IN_PROGRESS'].includes(read(row, 'status')) && <button onClick={() => statusAction(row, 'COMPLETED')} className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700">Complete</button>}{['ASSIGNED', 'IN_PROGRESS'].includes(read(row, 'status')) && <button onClick={() => statusAction(row, 'CANCELLED')} className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-700">Cancel</button>}</div>} />}
+  </>;
+}
+
+function TripDispatchPage() {
+  const { data: bookingsData, loading, error, reload } = useRemote(
+    () => fleetManagerApi.dispatchBookings().then((response) => response.data), []);
+  const { data: driversData, loading: driversLoading, error: driversError, reload: reloadDrivers } =
+    useRemote(() => fleetManagerApi.drivers().then((response) => response.data), []);
+  const action = useAction(reload);
+  const [selectedDrivers, setSelectedDrivers] = useState({});
+  const bookings = Array.isArray(bookingsData) ? bookingsData : [];
+  const drivers = (Array.isArray(driversData) ? driversData : []).filter((driver) =>
+    read(driver, 'account_status') === 'APPROVED' && Boolean(read(driver, 'is_active'))
+      && read(driver, 'availability') !== 'OFFLINE');
+
+  const assignDriver = async (booking) => {
+    const driverId = Number(selectedDrivers[read(booking, 'booking_id')]);
+    if (!driverId) return;
+    const saved = await action.run(() => fleetManagerApi.assignTrip({
+      bookingId: Number(read(booking, 'booking_id')),
+      driverId,
+    }), 'Driver assigned to the confirmed booking.');
+    if (saved) setSelectedDrivers((current) => ({ ...current, [read(booking, 'booking_id')]: '' }));
+  };
+  const refresh = () => { reload(); reloadDrivers(); };
+
+  return <>
+    <Heading title="Trip dispatch" description="Assign confirmed with-driver bookings to approved drivers in your Admin-granted vehicle and driver scope." />
+    <Banner error={error || driversError || action.error} message={action.message} onRetry={refresh} />
+    {loading ? <Loading /> : <DataTable rows={bookings} columns={[
+      ['booking_id', 'Booking'], ['vehicle_name', 'Vehicle'], ['customer_name', 'Customer'],
+      ['customer_phone', 'Phone'], ['pickup_location', 'Pickup'], ['return_location', 'Drop-off'],
+      ['pickup_date', 'Pickup time'], ['return_date', 'Drop-off time'], ['trip_status', 'Trip status'],
+      ['driver_name', 'Assigned driver'],
+    ]} actions={(booking) => {
+      const status = String(read(booking, 'trip_status') || '').toUpperCase();
+      const dispatchable = read(booking, 'booking_status') === 'CONFIRMED'
+        && ['UNASSIGNED', 'DECLINED', 'CANCELLED'].includes(status);
+      if (!dispatchable) return <span className="text-xs text-slate-400">{status === 'PENDING' ? 'Waiting for driver' : 'No action'}</span>;
+      return <div className="flex min-w-56 items-center gap-2">
+        <select
+          aria-label={`Choose driver for booking ${read(booking, 'booking_id')}`}
+          value={selectedDrivers[read(booking, 'booking_id')] || ''}
+          onChange={(event) => setSelectedDrivers((current) => ({ ...current, [read(booking, 'booking_id')]: event.target.value }))}
+          className="max-w-40 rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs"
+        >
+          <option value="">Choose driver</option>
+          {drivers.map((driver) => <option key={read(driver, 'id')} value={read(driver, 'id')}>{read(driver, 'name')}</option>)}
+        </select>
+        <button
+          disabled={action.saving || !selectedDrivers[read(booking, 'booking_id')]}
+          onClick={() => assignDriver(booking)}
+          className="rounded-lg bg-[#FF6B00] px-3 py-2 text-xs font-bold text-white hover:bg-[#E85D00] disabled:opacity-50"
+        >Assign</button>
+      </div>;
+    }} empty="No confirmed with-driver bookings are in your authorized fleet." />}
+    {!drivers.length && !loading && !driversLoading && !driversError && <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">No online approved drivers are in your assigned driver scope.</p>}
   </>;
 }
 
@@ -450,6 +508,7 @@ export default function FleetManagerWorkspace() {
   if (pathname.endsWith('/dashboard')) return <Dashboard />;
   if (pathname.endsWith('/vehicles')) return <VehiclePage />;
   if (pathname.endsWith('/availability')) return <VehiclePage availabilityOnly />;
+  if (pathname.endsWith('/trip-dispatch')) return <TripDispatchPage />;
   if (pathname.endsWith('/vehicle-assignments')) return <AssignmentPage />;
   if (pathname.endsWith('/drivers')) return <DriversPage />;
   if (pathname.endsWith('/active-rentals')) return <ActiveRentals />;

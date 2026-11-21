@@ -7,6 +7,7 @@ import com.smartride.backend.dto.FleetPasswordChangeRequest;
 import com.smartride.backend.dto.FleetPreferencesRequest;
 import com.smartride.backend.dto.FleetProfileRequest;
 import com.smartride.backend.dto.FleetStatusRequest;
+import com.smartride.backend.dto.FleetTripAssignmentRequest;
 import com.smartride.backend.entity.User;
 import com.smartride.backend.enums.RoleName;
 import com.smartride.backend.repository.UserRepository;
@@ -72,12 +73,29 @@ public class FleetManagerOperationsService {
                    WHERE a.fleet_manager_id = ? AND d.is_active = TRUE AND d.approval_status = 'APPROVED'
                      AND NOT EXISTS (SELECT 1 FROM fleet_vehicle_assignments x
                        WHERE x.driver_id = d.id AND x.fleet_manager_id = a.fleet_manager_id
-                         AND x.status IN ('PENDING','ASSIGNED','IN_PROGRESS'))) AS available_drivers,
-                  (SELECT COUNT(DISTINCT x.driver_id) FROM fleet_vehicle_assignments x
-                   WHERE x.fleet_manager_id = ? AND x.status IN ('PENDING','ASSIGNED','IN_PROGRESS')) AS assigned_drivers,
+                         AND x.status IN ('PENDING','ASSIGNED','IN_PROGRESS'))
+                     AND NOT EXISTS (SELECT 1 FROM driver_trip_assignments x
+                       JOIN bookings b ON b.id = x.booking_id
+                       WHERE x.driver_id = d.id AND x.fleet_manager_id = a.fleet_manager_id
+                         AND x.status IN ('PENDING','ACCEPTED','IN_PROGRESS')
+                         AND b.return_date > CURRENT_TIMESTAMP)) AS available_drivers,
+                  (SELECT COUNT(DISTINCT active.driver_id) FROM (
+                     SELECT x.driver_id FROM fleet_vehicle_assignments x
+                     WHERE x.fleet_manager_id = ? AND x.status IN ('PENDING','ASSIGNED','IN_PROGRESS')
+                     UNION
+                     SELECT x.driver_id FROM driver_trip_assignments x
+                     WHERE x.fleet_manager_id = ? AND x.status IN ('PENDING','ACCEPTED','IN_PROGRESS')
+                   ) active) AS assigned_drivers,
                   (SELECT COUNT(*) FROM fleet_maintenance_requests r
-                   WHERE r.fleet_manager_id = ? AND r.status IN ('OPEN','IN_PROGRESS')) AS pending_maintenance_requests
-                """, managerId, managerId, managerId, managerId, managerId, managerId, managerId, managerId);
+                   WHERE r.fleet_manager_id = ? AND r.status IN ('OPEN','IN_PROGRESS')) AS pending_maintenance_requests,
+                  (SELECT COUNT(*) FROM bookings b
+                   JOIN fleet_manager_vehicle_access a ON a.vehicle_id = b.vehicle_id
+                   LEFT JOIN driver_trip_assignments dta ON dta.booking_id = b.id
+                   WHERE a.fleet_manager_id = ? AND UPPER(b.booking_type) = 'WITH_DRIVER'
+                     AND UPPER(b.status) = 'CONFIRMED'
+                     AND (dta.id IS NULL OR dta.status IN ('DECLINED','CANCELLED'))) AS unassigned_driver_trips
+                """, managerId, managerId, managerId, managerId, managerId, managerId, managerId, managerId,
+                managerId, managerId);
         Map<String, Object> result = new LinkedHashMap<>(summary);
         result.put("recentAssignments", assignments(managerId, "", 5));
         result.put("upcomingMaintenance", maintenance(managerId, "SCHEDULED", 5));
@@ -151,17 +169,28 @@ public class FleetManagerOperationsService {
                        CASE WHEN EXISTS (
                          SELECT 1 FROM fleet_vehicle_assignments a WHERE a.driver_id = d.id
                            AND a.fleet_manager_id = ? AND a.status IN ('PENDING','ASSIGNED','IN_PROGRESS')
-                       ) THEN 'ASSIGNED' ELSE 'AVAILABLE' END AS availability,
+                       ) OR EXISTS (
+                         SELECT 1 FROM driver_trip_assignments a WHERE a.driver_id = d.id
+                           AND a.fleet_manager_id = ? AND a.status IN ('PENDING','ACCEPTED','IN_PROGRESS')
+                       ) THEN 'ASSIGNED'
+                       WHEN NOT COALESCE((SELECT p.is_available FROM driver_preferences p
+                                          WHERE p.user_id = d.id), TRUE) THEN 'OFFLINE'
+                       ELSE 'AVAILABLE' END AS availability,
+                       COALESCE((SELECT v.title FROM driver_trip_assignments a
+                          JOIN bookings b ON b.id = a.booking_id JOIN vehicles v ON v.id = b.vehicle_id
+                        WHERE a.driver_id = d.id AND a.fleet_manager_id = ?
+                          AND a.status IN ('PENDING','ACCEPTED','IN_PROGRESS')
+                        ORDER BY b.pickup_date DESC LIMIT 1),
                        (SELECT v.title FROM fleet_vehicle_assignments a
                           JOIN vehicles v ON v.id = a.vehicle_id
                         WHERE a.driver_id = d.id AND a.fleet_manager_id = ?
                           AND a.status IN ('PENDING','ASSIGNED','IN_PROGRESS')
-                        ORDER BY a.start_at DESC LIMIT 1) AS current_vehicle,
+                        ORDER BY a.start_at DESC LIMIT 1)) AS current_vehicle,
                        (SELECT a.id FROM fleet_vehicle_assignments a
                         WHERE a.driver_id = d.id AND a.fleet_manager_id = ?
                           AND a.status IN ('PENDING','ASSIGNED','IN_PROGRESS')
                         ORDER BY a.start_at DESC LIMIT 1) AS current_assignment,
-                       d.approval_status AS account_status,
+                       d.approval_status AS account_status, d.is_active,
                        da.license_expiry_date
                 FROM fleet_manager_driver_access access
                 JOIN users d ON d.id = access.driver_id
@@ -170,7 +199,7 @@ public class FleetManagerOperationsService {
                   AND (? = '%%' OR LOWER(d.full_name) LIKE ? OR LOWER(d.email) LIKE ?)
                 ORDER BY d.full_name, d.id
                 LIMIT 500
-                """, managerId, managerId, managerId, managerId,
+                """, managerId, managerId, managerId, managerId, managerId, managerId,
                 normalizedSearch.isEmpty() ? "%%" : pattern, pattern, pattern);
     }
 
@@ -190,6 +219,133 @@ public class FleetManagerOperationsService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> assignments(String email, String status, int limit) {
         return assignments(requireManager(email).getId(), status, limit);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> tripDispatchBookings(String email) {
+        long managerId = requireManager(email).getId();
+        return jdbc.queryForList("""
+                SELECT b.id AS booking_id, b.vehicle_id, v.title AS vehicle_name,
+                       c.full_name AS customer_name, c.email AS customer_email, c.phone AS customer_phone,
+                       b.pickup_date, b.return_date, b.pickup_location, b.return_location,
+                       b.status AS booking_status, b.amount,
+                       COALESCE(a.status, 'UNASSIGNED') AS trip_status,
+                       a.id AS assignment_id, a.driver_id, d.full_name AS driver_name
+                FROM bookings b
+                JOIN vehicles v ON v.id = b.vehicle_id
+                JOIN fleet_manager_vehicle_access access ON access.vehicle_id = v.id
+                LEFT JOIN users c ON c.id = b.customer_id
+                LEFT JOIN driver_trip_assignments a ON a.booking_id = b.id
+                LEFT JOIN users d ON d.id = a.driver_id
+                WHERE access.fleet_manager_id = ?
+                  AND UPPER(b.booking_type) = 'WITH_DRIVER'
+                  AND UPPER(b.status) IN ('CONFIRMED', 'ACTIVE', 'IN_PROGRESS', 'COMPLETED')
+                ORDER BY CASE WHEN UPPER(b.status) IN ('CONFIRMED', 'ACTIVE', 'IN_PROGRESS') THEN 0 ELSE 1 END,
+                         b.pickup_date, b.id
+                LIMIT 500
+                """, managerId);
+    }
+
+    @Transactional
+    public Map<String, Object> assignBookingDriver(String email, FleetTripAssignmentRequest request) {
+        long managerId = requireManager(email).getId();
+        Map<String, Object> booking;
+        try {
+            booking = jdbc.queryForMap("""
+                    SELECT b.id AS booking_id, b.vehicle_id, b.customer_id, b.booking_type, b.status,
+                           b.pickup_date, b.return_date
+                    FROM bookings b
+                    JOIN fleet_manager_vehicle_access access ON access.vehicle_id = b.vehicle_id
+                    WHERE access.fleet_manager_id = ? AND b.id = ?
+                    FOR UPDATE
+                    """, managerId, request.bookingId());
+        } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Booking not found in your authorized fleet");
+        }
+
+        if (!"WITH_DRIVER".equalsIgnoreCase(String.valueOf(booking.get("booking_type")))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only bookings with a driver can be dispatched");
+        }
+        if (!"CONFIRMED".equalsIgnoreCase(String.valueOf(booking.get("status")))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only confirmed bookings can be dispatched");
+        }
+
+        long vehicleId = ((Number) booking.get("vehicle_id")).longValue();
+        long bookingId = ((Number) booking.get("booking_id")).longValue();
+        long driverId = request.driverId();
+        requireVehicleAccess(managerId, vehicleId);
+        requireDriverAccess(managerId, driverId);
+        jdbc.queryForObject("SELECT id FROM users WHERE id = ? FOR UPDATE", Long.class, driverId);
+        jdbc.update("""
+                INSERT INTO driver_preferences (user_id) VALUES (?)
+                ON CONFLICT (user_id) DO NOTHING
+                """, driverId);
+        Boolean driverAvailable = jdbc.queryForObject("""
+                SELECT is_available FROM driver_preferences WHERE user_id = ? FOR UPDATE
+                """, Boolean.class, driverId);
+        if (!Boolean.TRUE.equals(driverAvailable)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This driver is currently unavailable");
+        }
+
+        Integer fleetConflicts = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM fleet_vehicle_assignments
+                WHERE driver_id = ? AND status IN ('PENDING','ASSIGNED','IN_PROGRESS')
+                  AND start_at < ? AND (end_at IS NULL OR end_at > ?)
+                """, Integer.class, driverId, booking.get("return_date"), booking.get("pickup_date"));
+        Integer tripConflicts = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM driver_trip_assignments a
+                JOIN bookings other_booking ON other_booking.id = a.booking_id
+                WHERE a.driver_id = ? AND a.booking_id <> ?
+                  AND a.status IN ('PENDING','ACCEPTED','IN_PROGRESS')
+                  AND other_booking.pickup_date < ? AND other_booking.return_date > ?
+                """, Integer.class, driverId, bookingId, booking.get("return_date"), booking.get("pickup_date"));
+        if ((fleetConflicts != null && fleetConflicts > 0) || (tripConflicts != null && tripConflicts > 0)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This driver already has an assignment during the booking dates");
+        }
+
+        List<Map<String, Object>> existingAssignments = jdbc.queryForList("""
+                SELECT id, status FROM driver_trip_assignments WHERE booking_id = ? FOR UPDATE
+                """, bookingId);
+        long assignmentId;
+        if (existingAssignments.isEmpty()) {
+            assignmentId = insertAndReturnId("""
+                    INSERT INTO driver_trip_assignments (booking_id, driver_id, fleet_manager_id, assigned_by, status)
+                    VALUES (?, ?, ?, ?, 'PENDING')
+                    """, bookingId, driverId, managerId, managerId);
+        } else {
+            Map<String, Object> existing = existingAssignments.get(0);
+            String currentStatus = String.valueOf(existing.get("status")).toUpperCase(Locale.ROOT);
+            if (!Set.of("DECLINED", "CANCELLED").contains(currentStatus)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "This booking already has an active driver assignment");
+            }
+            assignmentId = ((Number) existing.get("id")).longValue();
+            jdbc.update("""
+                    UPDATE driver_trip_assignments
+                    SET driver_id = ?, fleet_manager_id = ?, assigned_by = ?, status = 'PENDING',
+                        assigned_at = CURRENT_TIMESTAMP, responded_at = NULL, completed_at = NULL,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """, driverId, managerId, managerId, assignmentId);
+        }
+
+        Object customerId = booking.get("customer_id");
+        if (customerId != null) {
+            jdbc.update("""
+                    INSERT INTO customer_notifications (customer_id, title, message)
+                    VALUES (?, 'Driver assigned to your trip', ?)
+                    """, customerId, "A driver has been assigned to your confirmed booking.");
+        }
+        jdbc.update("""
+                INSERT INTO driver_notifications (user_id, title, message)
+                VALUES (?, 'New trip assigned', ?)
+                """, driverId, "Booking #" + bookingId + " has been assigned to you. Review the trip details and respond.");
+        notify(managerId, "DRIVER_TRIP_ASSIGNED", "Driver trip assigned",
+                "Booking #" + bookingId + " has been assigned to a driver.");
+        return tripDispatchBookings(email).stream()
+                .filter(row -> ((Number) row.get("booking_id")).longValue() == bookingId)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Driver trip assignment was not found after saving"));
     }
 
     @Transactional
@@ -274,11 +430,15 @@ public class FleetManagerOperationsService {
                        v.registration_number, b.customer_id, c.full_name AS customer_name,
                        b.pickup_date AS rental_start_date, b.return_date AS expected_return_date,
                        b.pickup_location, b.return_location, b.status AS rental_status,
+                       COALESCE((SELECT d.full_name FROM driver_trip_assignments a JOIN users d ON d.id = a.driver_id
+                        WHERE a.booking_id = b.id AND a.fleet_manager_id = ?
+                          AND a.status IN ('PENDING','ACCEPTED','IN_PROGRESS')
+                        ORDER BY a.assigned_at DESC LIMIT 1),
                        (SELECT d.full_name FROM fleet_vehicle_assignments a JOIN users d ON d.id = a.driver_id
                         WHERE a.vehicle_id = v.id AND a.fleet_manager_id = ?
                           AND a.start_at <= b.return_date AND (a.end_at IS NULL OR a.end_at > b.pickup_date)
                           AND a.status IN ('ASSIGNED','IN_PROGRESS')
-                        ORDER BY a.start_at DESC LIMIT 1) AS driver_name,
+                        ORDER BY a.start_at DESC LIMIT 1)) AS driver_name,
                        (SELECT a.id FROM fleet_vehicle_assignments a
                         WHERE a.vehicle_id = v.id AND a.fleet_manager_id = ?
                           AND a.start_at <= b.return_date AND (a.end_at IS NULL OR a.end_at > b.pickup_date)
@@ -288,7 +448,7 @@ public class FleetManagerOperationsService {
                 JOIN fleet_manager_vehicle_access access ON access.vehicle_id = v.id
                 LEFT JOIN users c ON c.id = b.customer_id
                 WHERE access.fleet_manager_id = ? AND b.id = ?
-                """, managerId, managerId, managerId, bookingId);
+                """, managerId, managerId, managerId, managerId, bookingId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Rental not found");
         return rows.get(0);
     }
@@ -651,11 +811,15 @@ public class FleetManagerOperationsService {
                        v.registration_number, b.customer_id, c.full_name AS customer_name,
                        b.pickup_date AS rental_start_date, b.return_date AS expected_return_date,
                        b.pickup_location, b.return_location, b.status AS rental_status,
+                       COALESCE((SELECT d.full_name FROM driver_trip_assignments a JOIN users d ON d.id = a.driver_id
+                        WHERE a.booking_id = b.id AND a.fleet_manager_id = ?
+                          AND a.status IN ('PENDING','ACCEPTED','IN_PROGRESS')
+                        ORDER BY a.assigned_at DESC LIMIT 1),
                        (SELECT d.full_name FROM fleet_vehicle_assignments a JOIN users d ON d.id = a.driver_id
                         WHERE a.vehicle_id = v.id AND a.fleet_manager_id = ?
                           AND a.start_at <= b.return_date AND (a.end_at IS NULL OR a.end_at > b.pickup_date)
                           AND a.status IN ('ASSIGNED','IN_PROGRESS')
-                        ORDER BY a.start_at DESC LIMIT 1) AS driver_name,
+                        ORDER BY a.start_at DESC LIMIT 1)) AS driver_name,
                        (SELECT a.id FROM fleet_vehicle_assignments a
                         WHERE a.vehicle_id = v.id AND a.fleet_manager_id = ?
                           AND a.start_at <= b.return_date AND (a.end_at IS NULL OR a.end_at > b.pickup_date)
@@ -666,7 +830,7 @@ public class FleetManagerOperationsService {
                 LEFT JOIN users c ON c.id = b.customer_id
                 WHERE access.fleet_manager_id = ? AND UPPER(b.status) IN ('ACTIVE','IN_PROGRESS')
                 ORDER BY b.return_date LIMIT ?
-                """, managerId, managerId, managerId, Math.max(1, Math.min(limit, 500)));
+                """, managerId, managerId, managerId, managerId, Math.max(1, Math.min(limit, 500)));
     }
 
     private List<Map<String, Object>> maintenance(long managerId, String status, int limit) {

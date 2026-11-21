@@ -24,6 +24,8 @@ export const fleetManagerApi = {
   driverAssignments: (id) => client.get(`/drivers/${id}/assignments`),
   assignments: (params = {}) => client.get('/assignments', { params }),
   createAssignment: (payload) => client.post('/assignments', payload),
+  dispatchBookings: () => client.get('/trip-dispatch'),
+  assignTrip: (payload) => client.post('/trip-dispatch', payload),
   updateAssignmentStatus: (id, status) => client.put(`/assignments/${id}/status`, { status }),
   cancelAssignment: (id) => client.put(`/assignments/${id}/cancel`),
   activeRentals: () => client.get('/active-rentals'),

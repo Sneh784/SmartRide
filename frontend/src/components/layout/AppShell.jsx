@@ -4,9 +4,17 @@ import { useLocation } from 'react-router-dom';
 
 export default function AppShell({ children }) {
   const { pathname } = useLocation();
+  const driverWorkspacePaths = [
+    '/driver/dashboard', '/driver/assigned-bookings', '/driver/active-trips',
+    '/driver/trip-history', '/driver/earnings', '/driver/availability', '/driver/documents',
+    '/driver/notifications', '/driver/profile',
+  ];
+  const isDriverWorkspace = pathname === '/driver-dashboard'
+    || driverWorkspacePaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
   if (pathname === '/customer' || pathname.startsWith('/customer/') || pathname === '/admin' || pathname.startsWith('/admin/')
     || pathname === '/vendor' || pathname.startsWith('/vendor/dashboard') || pathname.startsWith('/vendor/vehicles')
     || pathname === '/fleet-manager' || pathname.startsWith('/fleet-manager/')
+    || pathname === '/driver' || isDriverWorkspace
     || pathname.startsWith('/vendor/vehicle-approval') || pathname.startsWith('/vendor/bookings')
     || pathname.startsWith('/vendor/active-rentals') || pathname.startsWith('/vendor/booking-history')
     || pathname.startsWith('/vendor/earnings') || pathname.startsWith('/vendor/payments')

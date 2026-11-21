@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { BadgeCheck, CarFront, CheckCircle2, FileCheck2, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { driverApi } from '../api/driverApi';
-import { vehicleCategories } from '../utils/vehicleCategories';
-import PasswordInput from '../components/ui/PasswordInput';
+import { vehicleCategories } from '../../utils/vehicleCategories';
+import PasswordInput from '../../components/ui/PasswordInput';
 
 const initialForm = {
   fullName: '',
@@ -179,7 +179,7 @@ export default function DriverForm() {
             <p className="mt-1 font-mono text-lg font-bold text-slate-900">{application.applicationNumber}</p>
             <p className="mt-2 text-sm text-amber-700">Status: {application.status}</p>
           </div>
-          <Link to="/login" className="mt-7 inline-flex rounded-xl bg-[#FF6B00] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#E85D00]">
+          <Link to="/driver/login" className="mt-7 inline-flex rounded-xl bg-[#FF6B00] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#E85D00]">
             Go to login
           </Link>
         </div>
@@ -288,7 +288,7 @@ export default function DriverForm() {
           {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
           <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-500">
-              Already approved? <Link to="/login" className="font-semibold text-[#B54700] hover:underline">Driver login</Link>
+              Already approved? <Link to="/driver/login" className="font-semibold text-[#B54700] hover:underline">Driver login</Link>
             </p>
             <button type="submit" disabled={loading} className="rounded-xl bg-[#FF6B00] px-6 py-3 font-bold text-white transition hover:bg-[#E85D00] disabled:cursor-not-allowed disabled:opacity-60">
               {loading ? 'Submitting application…' : 'Submit for admin review'}

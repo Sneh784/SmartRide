@@ -1,6 +1,6 @@
 package com.smartride.backend;
 
-import com.smartride.backend.service.DriverDocumentStorage;
+import com.smartride.backend.driver.service.DriverDocumentStorage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;

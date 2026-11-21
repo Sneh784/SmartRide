@@ -1,4 +1,4 @@
-package com.smartride.backend.config;
+package com.smartride.backend.driver.config;
 
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;

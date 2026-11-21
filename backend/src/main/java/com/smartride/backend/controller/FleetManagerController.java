@@ -7,6 +7,7 @@ import com.smartride.backend.dto.FleetPasswordChangeRequest;
 import com.smartride.backend.dto.FleetPreferencesRequest;
 import com.smartride.backend.dto.FleetProfileRequest;
 import com.smartride.backend.dto.FleetStatusRequest;
+import com.smartride.backend.dto.FleetTripAssignmentRequest;
 import com.smartride.backend.service.FleetManagerOperationsService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -74,6 +75,18 @@ public class FleetManagerController {
     public List<Map<String, Object>> assignments(Authentication authentication,
                                                  @RequestParam(defaultValue = "") String status) {
         return service.assignments(authentication.getName(), status, 500);
+    }
+
+    @GetMapping("/trip-dispatch")
+    public List<Map<String, Object>> tripDispatchBookings(Authentication authentication) {
+        return service.tripDispatchBookings(authentication.getName());
+    }
+
+    @PostMapping("/trip-dispatch")
+    public ResponseEntity<Map<String, Object>> assignBookingDriver(Authentication authentication,
+                                                                    @Valid @RequestBody FleetTripAssignmentRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(service.assignBookingDriver(authentication.getName(), request));
     }
 
     @PostMapping("/assignments")
