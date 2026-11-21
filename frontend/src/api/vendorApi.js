@@ -36,4 +36,5 @@ export const vendorApi = {
   notifications: () => vendorClient.get('/notifications'),
   markNotificationRead: (id) => vendorClient.put(`/notifications/${id}/read`),
   vendorDocument: (id) => vendorClient.get(`/documents/${id}`, { responseType: 'blob' }),
+  uploadVendorDocument: (formData) => vendorClient.post('/documents', formData),
 };

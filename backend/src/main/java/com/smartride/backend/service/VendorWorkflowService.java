@@ -18,6 +18,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -35,6 +37,8 @@ import java.util.regex.Pattern;
 @Service
 public class VendorWorkflowService {
     private static final Pattern PHONE_DIGITS = Pattern.compile("\\D");
+    private static final Set<String> ADDITIONAL_DOCUMENT_TYPES =
+            Set.of("IDENTITY_PROOF", "PAN_CARD", "ADDRESS_PROOF", "BUSINESS_REGISTRATION");
     private final VendorApplicationRepository applications;
     private final VendorDocumentRepository documents;
     private final UserRepository users;
@@ -178,6 +182,51 @@ public class VendorWorkflowService {
         VendorApplication application = applications.findByUserId(user.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendor application not found"));
         return applicationDetails(application, false);
+    }
+
+    @Transactional
+    public Map<String, Object> uploadDocument(String email, String documentType, MultipartFile file) {
+        String normalizedType = documentType == null ? "" : documentType.trim().toUpperCase(Locale.ROOT);
+        if (!ADDITIONAL_DOCUMENT_TYPES.contains(normalizedType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported vendor document type");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select a document to upload");
+        }
+
+        User user = requireVendor(email);
+        VendorApplication application = applications.findByUserId(user.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendor application not found"));
+        VendorDocumentStorage.StoredFile stored;
+        try {
+            stored = storage.store(file, false);
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage(), exception);
+        }
+
+        VendorDocument document = new VendorDocument();
+        document.setApplication(application);
+        document.setDocumentType(normalizedType);
+        document.setStorageKey(stored.key());
+        document.setOriginalName(normalizedType + stored.extension());
+        document.setContentType(stored.contentType());
+        document.setUploadedAt(LocalDateTime.now());
+        try {
+            documents.save(document);
+        } catch (RuntimeException exception) {
+            storage.delete(stored.key());
+            throw exception;
+        }
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status != STATUS_COMMITTED) storage.delete(stored.key());
+                }
+            });
+        }
+        return documentDetails(document, false);
     }
 
     @Transactional(readOnly = true)
@@ -427,15 +476,20 @@ public class VendorWorkflowService {
         result.put("rejectionReason", application.getRejectionReason());
         result.put("reviewedAt", application.getReviewedAt());
         result.put("reviewedBy", application.getReviewedBy() == null ? null : application.getReviewedBy().getFullName());
-        result.put("documents", documents.findByApplicationIdOrderById(application.getId()).stream().map(document -> {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("id", document.getId());
-            item.put("type", document.getDocumentType());
-            item.put("downloadUrl", (admin ? "/api/admin/vendors/documents/" : "/api/vendor/documents/")
-                    + document.getId());
-            return item;
-        }).toList());
+        result.put("documents", documents.findByApplicationIdOrderById(application.getId()).stream()
+                .map(document -> documentDetails(document, admin)).toList());
         return result;
+    }
+
+    private Map<String, Object> documentDetails(VendorDocument document, boolean admin) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", document.getId());
+        item.put("type", document.getDocumentType());
+        item.put("originalName", document.getOriginalName());
+        item.put("uploadedAt", document.getUploadedAt());
+        item.put("downloadUrl", (admin ? "/api/admin/vendors/documents/" : "/api/vendor/documents/")
+                + document.getId());
+        return item;
     }
 
     private User requireVendor(String email) {

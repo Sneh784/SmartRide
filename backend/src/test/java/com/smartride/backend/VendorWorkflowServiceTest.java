@@ -3,6 +3,7 @@ package com.smartride.backend;
 import com.smartride.backend.dto.LoginRequest;
 import com.smartride.backend.entity.User;
 import com.smartride.backend.entity.VendorApplication;
+import com.smartride.backend.entity.VendorDocument;
 import com.smartride.backend.enums.RoleName;
 import com.smartride.backend.repository.RoleRepository;
 import com.smartride.backend.repository.UserRepository;
@@ -18,14 +19,18 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -170,6 +175,40 @@ class VendorWorkflowServiceTest {
 
         assertEquals(403, exception.getStatusCode().value());
         assertEquals("PENDING", application.getStatus());
+    }
+
+    @Test
+    void approvedVendorCanUploadAnAdditionalKycDocument() {
+        User vendor = user("APPROVED", true, RoleName.VENDOR);
+        VendorApplication application = new VendorApplication();
+        application.setUser(vendor);
+        MultipartFile file = org.mockito.Mockito.mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(users.findByEmail("vendor@example.com")).thenReturn(Optional.of(vendor));
+        when(applications.findByUserId(vendor.getId())).thenReturn(Optional.of(application));
+        when(storage.store(file, false)).thenReturn(
+                new VendorDocumentStorage.StoredFile("stored-key.pdf", ".pdf", "application/pdf"));
+        TransactionSynchronizationManager.initSynchronization();
+
+        try {
+            Map<String, Object> result = service.uploadDocument("vendor@example.com", "pan_card", file);
+
+            var captor = forClass(VendorDocument.class);
+            verify(documents).save(captor.capture());
+            assertEquals("PAN_CARD", captor.getValue().getDocumentType());
+            assertEquals("stored-key.pdf", captor.getValue().getStorageKey());
+            assertEquals("PAN_CARD.pdf", result.get("originalName"));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void vendorCannotUploadUnsupportedKycDocumentTypes() {
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.uploadDocument("vendor@example.com", "PROFILE_IMAGE", null));
+
+        assertEquals(400, exception.getStatusCode().value());
     }
 
     private static User user(String status, boolean active, RoleName role) {

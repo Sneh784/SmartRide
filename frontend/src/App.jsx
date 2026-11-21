@@ -19,13 +19,13 @@ import VendorLogin from './pages/VendorLogin';
 import VendorLayout from './components/vendor/VendorLayout';
 import VendorVehicles from './pages/vendor/VendorVehicles';
 import VendorVehicleForm from './pages/vendor/VendorVehicleForm';
-import { VendorBookings, VendorDocuments, VendorNotifications, VendorPayments, VendorUnavailablePage } from './pages/vendor/VendorDataPages';
+import { VendorBookings, VendorDocuments, VendorNotifications, VendorPayments, VendorProfile, VendorUnavailablePage } from './pages/vendor/VendorDataPages';
 import RequireVendor from './routes/RequireVendor';
 import RequireDriver from './routes/RequireDriver';
 import CustomerLayout from './components/customer/CustomerLayout';
 import RequireCustomer from './routes/RequireCustomer';
 import { CustomerBookings, CustomerDashboard as CustomerHome, CustomerKyc, CustomerNotifications, CustomerPayments, CustomerProfile, CustomerSupport, CustomerVehicleDetails, CustomerVehicles, CustomerWishlist } from './pages/customer/CustomerPages';
-import AdminLogin from './pages/AdminLogin';
+
 import AdminLayout from './components/admin/AdminLayout';
 import RequireAdmin from './routes/RequireAdmin';
 import AdminWorkspace from './pages/admin/AdminWorkspace';
@@ -48,7 +48,7 @@ function App() {
             <Route path="/vendor/login" element={<VendorLogin />} />
             <Route path="/driver/login" element={<DriverLogin />} />
             <Route path="/driver/register" element={<DriverForm />} />
-            <Route path="/admin/login" element={<AdminLogin />} />
+           
             <Route path="/vehicles" element={<BrowseVehicles />} />
             <Route path="/vehicles/:id" element={<VehicleDetails />} />
             <Route path="/my-bookings" element={<Navigate to="/customer/bookings" replace />} />
@@ -90,7 +90,7 @@ function App() {
                 <Route path="reviews" element={<VendorUnavailablePage />} />
                 <Route path="documents" element={<VendorDocuments />} />
                 <Route path="notifications" element={<VendorNotifications />} />
-                <Route path="profile" element={<VendorUnavailablePage />} />
+                <Route path="profile" element={<VendorProfile />} />
                 <Route path="settings" element={<VendorUnavailablePage />} />
                 <Route path="support" element={<VendorUnavailablePage />} />
               </Route>

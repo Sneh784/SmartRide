@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Bell, CircleAlert, CreditCard, Download, FileCheck2, LoaderCircle } from 'lucide-react';
+import { Bell, CircleAlert, CreditCard, Download, FileCheck2, LoaderCircle, Upload } from 'lucide-react';
 import { vendorApi } from '../../api/vendorApi';
 
 const read = (row, key) => row?.[key] ?? row?.[key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)];
@@ -125,6 +125,11 @@ export function VendorNotifications() {
 export function VendorDocuments() {
   const { data, loading, error, reload } = useRemote(() => vendorApi.applicationStatus().then((response) => response.data), []);
   const [downloadError, setDownloadError] = useState('');
+  const [uploadError, setUploadError] = useState('');
+  const [uploadMessage, setUploadMessage] = useState('');
+  const [documentType, setDocumentType] = useState('IDENTITY_PROOF');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const download = async (document) => {
     setDownloadError('');
     try {
@@ -139,14 +144,148 @@ export function VendorDocuments() {
       setDownloadError(requestError?.response?.data?.message || 'Could not retrieve your private document.');
     }
   };
+  const upload = async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!selectedFile) {
+      setUploadError('Choose a document to upload.');
+      return;
+    }
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      setUploadError('The document must be 5 MB or smaller.');
+      return;
+    }
+    setUploading(true);
+    setUploadError('');
+    setUploadMessage('');
+    const formData = new FormData();
+    formData.append('documentType', documentType);
+    formData.append('document', selectedFile);
+    try {
+      await vendorApi.uploadVendorDocument(formData);
+      setSelectedFile(null);
+      setDocumentType('IDENTITY_PROOF');
+      form.reset();
+      setUploadMessage('KYC document uploaded successfully.');
+      reload();
+    } catch (requestError) {
+      setUploadError(requestError?.response?.data?.message || requestError?.response?.data?.detail || 'Could not upload this document.');
+    } finally {
+      setUploading(false);
+    }
+  };
   const documents = data?.documents || [];
-  return <><header className="mb-6"><p className="text-xs font-bold uppercase tracking-[.16em] text-[#D95400]">Business</p><h1 className="mt-1 text-2xl font-extrabold">Documents & KYC</h1><p className="mt-2 text-sm text-slate-500">Your submitted application documents remain private and can only be accessed with your authenticated vendor account.</p></header><Banner error={error || downloadError} onRetry={reload} />{loading ? <Loading /> : documents.length ? <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white px-5">{documents.map((document) => <div key={document.id} className="flex items-center justify-between gap-3 py-4"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-[#B54700]"><FileCheck2 size={19} /></span><div><p className="font-semibold">{String(document.type).replaceAll('_', ' ')}</p><p className="text-xs text-slate-500">Uploaded with vendor application</p></div></div><button onClick={() => download(document)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold hover:bg-slate-50"><Download size={15} />Download</button></div>)}</div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">No application documents were found.</div>}</>;
+  return <>
+    <header className="mb-6">
+      <p className="text-xs font-bold uppercase tracking-[.16em] text-[#D95400]">Business</p>
+      <h1 className="mt-1 text-2xl font-extrabold">Documents & KYC</h1>
+      <p className="mt-2 text-sm text-slate-500">Upload or download your private vendor verification documents.</p>
+    </header>
+    <Banner error={error || downloadError || uploadError} onRetry={error ? reload : undefined} />
+    {uploadMessage && <p role="status" className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{uploadMessage}</p>}
+    <form onSubmit={upload} className="mb-5 grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+      <label className="block">
+        <span className="mb-1.5 block text-sm font-semibold text-slate-700">Document type</span>
+        <select value={documentType} onChange={(event) => setDocumentType(event.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm">
+          <option value="IDENTITY_PROOF">Identity proof</option>
+          <option value="PAN_CARD">PAN card</option>
+          <option value="ADDRESS_PROOF">Address proof</option>
+          <option value="BUSINESS_REGISTRATION">Business registration</option>
+        </select>
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-sm font-semibold text-slate-700">Document file</span>
+        <input required type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setSelectedFile(event.target.files?.[0] || null)} className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-orange-50 file:px-3 file:py-2 file:font-semibold file:text-[#B54700]" />
+        <span className="mt-1 block text-xs text-slate-500">PDF, JPG, or PNG; maximum 5 MB.</span>
+      </label>
+      <button disabled={uploading} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#FF6B00] px-4 py-2 text-sm font-bold text-white hover:bg-[#E85D00] disabled:cursor-not-allowed disabled:opacity-60">
+        {uploading ? <LoaderCircle size={16} className="animate-spin" /> : <Upload size={16} />}
+        {uploading ? 'Uploading…' : 'Upload document'}
+      </button>
+    </form>
+    {loading ? <Loading /> : documents.length ? (
+      <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white px-5">
+        {documents.map((document) => <div key={document.id} className="flex items-center justify-between gap-3 py-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-[#B54700]"><FileCheck2 size={19} /></span>
+            <div className="min-w-0">
+              <p className="font-semibold">{String(document.type).replaceAll('_', ' ')}</p>
+              <p className="truncate text-xs text-slate-500">{document.originalName || 'Uploaded with vendor application'} · {date(document.uploadedAt)}</p>
+            </div>
+          </div>
+          <button onClick={() => download(document)} className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold hover:bg-slate-50"><Download size={15} />Download</button>
+        </div>)}
+      </div>
+    ) : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">No application documents were found.</div>}
+  </>;
+}
+
+export function VendorProfile() {
+  const { data, loading, error, reload } = useRemote(
+    () => vendorApi.applicationStatus().then((response) => response.data),
+    [],
+  );
+  const sections = [
+    {
+      title: 'Personal information',
+      fields: [
+        ['fullName', 'Full name'],
+        ['email', 'Email address'],
+        ['mobileNumber', 'Mobile number'],
+      ],
+    },
+    {
+      title: 'Business information',
+      fields: [
+        ['businessName', 'Business name'],
+        ['businessType', 'Business type'],
+        ['businessEmail', 'Business email'],
+        ['businessMobile', 'Business phone'],
+        ['businessAddress', 'Business address'],
+        ['city', 'City'],
+        ['state', 'State'],
+        ['pincode', 'Pincode'],
+        ['registrationNumber', 'Registration number'],
+      ],
+    },
+  ];
+
+  return <>
+    <header className="mb-6">
+      <p className="text-xs font-bold uppercase tracking-[.16em] text-[#D95400]">Account</p>
+      <h1 className="mt-1 text-2xl font-extrabold">My profile</h1>
+      <p className="mt-2 text-sm text-slate-500">Your submitted personal and business information.</p>
+    </header>
+    <Banner error={error} onRetry={reload} />
+    {loading ? <Loading /> : data && <>
+      <section className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Application reference</p>
+          <p className="mt-1 font-mono text-lg font-bold text-slate-900">{data.applicationNumber || '—'}</p>
+          <p className="mt-1 text-sm text-slate-500">Submitted {date(data.submittedAt)}</p>
+        </div>
+        <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
+          {String(data.status || 'UNKNOWN').replaceAll('_', ' ')}
+        </span>
+      </section>
+      <div className="grid gap-5 xl:grid-cols-2">
+        {sections.map((section) => <section key={section.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-4 font-bold text-slate-900">{section.title}</h2>
+          <dl className="grid gap-4 sm:grid-cols-2">
+            {section.fields.map(([key, label]) => <div key={key} className={key === 'businessAddress' ? 'sm:col-span-2' : ''}>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
+              <dd className="mt-1 break-words text-sm font-medium text-slate-800">{data[key] || '—'}</dd>
+            </div>)}
+          </dl>
+        </section>)}
+      </div>
+    </>}
+  </>;
 }
 
 const unavailable = {
   '/vendor/payout-history': ['Payout history', 'Payout ledger and settlement status are not currently available from the backend.'],
   '/vendor/reviews': ['Reviews & ratings', 'The current database does not include vendor review records.'],
-  '/vendor/profile': ['My profile', 'Vendor profile editing is not currently supported by the backend.'],
   '/vendor/settings': ['Settings', 'Vendor preferences and password settings are not currently supported by the backend.'],
   '/vendor/support': ['Help & support', 'Vendor support tickets are not currently supported by the backend.'],
 };
