@@ -187,6 +187,15 @@ public class VendorWorkflowController {
         return documentResponse(service.getDocument(userId, id, false));
     }
 
+    @PostMapping("/documents")
+    public ResponseEntity<Map<String, Object>> uploadVendorDocument(
+            Authentication authentication,
+            @RequestPart("documentType") String documentType,
+            @RequestPart("document") MultipartFile document) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(service.uploadDocument(authentication.getName(), documentType, document));
+    }
+
     private ResponseEntity<Resource> documentResponse(VendorDocument document) {
         Path path = storage.resolve(document.getStorageKey());
         if (!Files.isRegularFile(path)) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found");

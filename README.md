@@ -56,7 +56,7 @@ $env:ADMIN_INITIALIZATION_ENABLED="true"
 .\mvnw.cmd spring-boot:run
 ```
 
-`backend/.env.example` documents the required variables; Spring Boot does not automatically load `.env`, so export the values in the shell or configure them in your IDE/deployment environment. Keep real values in environment variables or a secret manager, never in source control.
+For local development, the backend imports `backend/.env` when started from the repository root, or `.env` when started from the backend directory. Copy `backend/.env.example` to `backend/.env` and set your local values there. Keep real values in this ignored file, environment variables, or a secret manager; never commit them to source control. For IDEs and deployments, provide the same settings through environment variables or a secret manager.
 
 Admin login is available at http://localhost:5173/admin/login. Customer login remains at http://localhost:5173/login; vendor access uses the dedicated vendor login route described below.
 

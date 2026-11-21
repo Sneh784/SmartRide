@@ -84,6 +84,10 @@ Customer endpoints require an authenticated customer account.
 - `POST /api/v1/customer/kyc` accepts `multipart/form-data`: an `application` JSON part containing `documentType` (`PASSPORT`, `DRIVING_LICENSE`, or `NATIONAL_ID`) and `documentNumber` (4–32 characters), plus an optional `document` PDF/PNG/JPG file up to 5 MB.
 - `GET /api/admin/kyc` lists submissions. `GET /api/admin/customers/{customerId}/kyc/document` downloads an attached document. Both require administrator authentication.
 
+## Vendor workspace
+
+Vendor endpoints require an authenticated vendor account. `POST /api/vendor/documents` accepts `multipart/form-data` with a `documentType` part (`IDENTITY_PROOF`, `PAN_CARD`, `ADDRESS_PROOF`, or `BUSINESS_REGISTRATION`) and a `document` PDF, PNG, or JPG file up to 5 MB. `GET /api/vendor/application/status` lists the vendor's uploaded documents, and `GET /api/vendor/documents/{id}` downloads one of the vendor's own private documents.
+
 ## Admin endpoints
 
 - GET /api/v1/admin/dashboard
