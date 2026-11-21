@@ -1,113 +1,135 @@
-import { Filter, Search, SlidersHorizontal } from 'lucide-react';
-import { vehicleCategories } from '../utils/vehicleCategories';
+import { CarFront, MapPin, Search, SlidersHorizontal, Star } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { vehicleApi } from '../api/vehicleApi';
 
-const vehicles = [
-  { name: 'Mercedes GLE', price: '₹4,800/day', city: 'Bengaluru', type: 'Cars', rating: 4.9 },
-  { name: 'Mahindra Bolero', price: '₹2,900/day', city: 'Hyderabad', type: 'Cars', rating: 4.7 },
-  { name: 'Force Traveller', price: '₹5,400/day', city: 'Mumbai', type: 'Passenger Vehicles', rating: 4.8 },
-  { name: 'Royal Enfield', price: '₹1,700/day', city: 'Pune', type: 'Two-Wheelers', rating: 4.6 },
-];
+const formatCurrency = (value) => new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  maximumFractionDigits: 0,
+}).format(Number(value) || 0);
 
 export default function BrowseVehicles() {
+  const [searchParams] = useSearchParams();
+  const [query, setQuery] = useState(() => searchParams.get('location') || '');
+  const [category, setCategory] = useState('');
+  const [sort, setSort] = useState('featured');
+  const [vehicles, setVehicles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    vehicleApi.list()
+      .then(({ data }) => {
+        if (active) setVehicles(Array.isArray(data) ? data : []);
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError?.response?.data?.message || 'Could not load vehicles. Please try again.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [reload]);
+
+  const categories = [...new Set(vehicles.map((vehicle) => vehicle.category).filter(Boolean))].sort();
+  const visibleVehicles = vehicles
+    .filter((vehicle) => `${vehicle.title || vehicle.name || ''} ${vehicle.brand || ''} ${vehicle.model || ''} ${vehicle.city || ''} ${vehicle.location || ''}`
+      .toLowerCase().includes(query.trim().toLowerCase()))
+    .filter((vehicle) => !category || vehicle.category === category)
+    .sort((left, right) => {
+      const leftRate = Number(left.dailyrate || left.dailyRate || left.priceperday || 0);
+      const rightRate = Number(right.dailyrate || right.dailyRate || right.priceperday || 0);
+      if (sort === 'price-low') return leftRate - rightRate;
+      if (sort === 'price-high') return rightRate - leftRate;
+      if (sort === 'rating') return Number(right.rating || 0) - Number(left.rating || 0);
+      return 0;
+    });
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">Vehicle marketplace</p>
-          <h1 className="mt-2 text-3xl font-black text-slate-900">Browse vehicles</h1>
+          <h1 className="mt-2 text-3xl font-black text-slate-900">Browse available vehicles</h1>
+          <p className="mt-2 text-sm text-slate-600">Listings shown here have been approved and marked available by SmartRide.</p>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2">
-            <Search size={16} className="text-slate-400" />
-            <input placeholder="Search by brand or model" className="w-56 bg-transparent text-sm outline-none placeholder:text-slate-400" />
-          </div>
-          <button className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
-            <SlidersHorizontal size={16} />
-            Filters
-          </button>
-        </div>
+        <Link to="/vendor/register" className="text-sm font-semibold text-brand-600 hover:underline">List your vehicle</Link>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
-        <aside className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-900">Filters</h2>
-            <Filter size={18} className="text-slate-500" />
-          </div>
+      <section className="mb-6 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_1fr_auto]">
+        <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5">
+          <Search size={17} className="text-slate-400" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search vehicle or city" className="w-full bg-transparent text-sm outline-none" />
+        </label>
+        <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm">
+          <SlidersHorizontal size={17} className="text-slate-400" />
+          <select value={category} onChange={(event) => setCategory(event.target.value)} className="w-full bg-transparent outline-none">
+            <option value="">All categories</option>
+            {categories.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </label>
+        <select value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Sort vehicles" className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm">
+          <option value="featured">Recommended</option>
+          <option value="price-low">Price: low to high</option>
+          <option value="price-high">Price: high to low</option>
+          <option value="rating">Top rated</option>
+        </select>
+      </section>
 
-          <div className="mt-6 space-y-6 text-sm">
-            <div>
-              <p className="mb-2 font-semibold text-slate-700">Category</p>
-              <div className="space-y-2 text-slate-600">
-                {vehicleCategories.map((item) => (
-                  <label key={item} className="flex items-center gap-2">
-                    <input type="checkbox" defaultChecked={item === 'Cars'} />
-                    <span>{item}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="mb-2 font-semibold text-slate-700">Booking Type</p>
-              <div className="space-y-2 text-slate-600">
-                <label className="flex items-center gap-2"><input type="checkbox" defaultChecked /> With Driver</label>
-                <label className="flex items-center gap-2"><input type="checkbox" /> Without Driver</label>
-              </div>
-            </div>
-
-            <div>
-              <p className="mb-2 font-semibold text-slate-700">Price Range</p>
-              <input type="range" className="w-full" />
-            </div>
-          </div>
-
-          <div className="mt-8 space-y-3">
-            <button className="w-full rounded-2xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-600">
-              Apply Filters
-            </button>
-            <button className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700">
-              Clear All
-            </button>
-          </div>
-        </aside>
-
-        <div className="space-y-5">
-          <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-            <p className="text-sm text-slate-600">Showing 4 vehicles</p>
-            <select className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-              <option>Featured</option>
-              <option>Lowest Price</option>
-              <option>Rating</option>
-            </select>
-          </div>
-
-          <div className="grid gap-5 xl:grid-cols-2">
-            {vehicles.map((vehicle) => (
-              <article key={vehicle.name} className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition hover:shadow-lg">
-                <div className="h-52 bg-gradient-to-br from-slate-100 via-slate-200 to-brand-50" />
-                <div className="p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">{vehicle.type}</p>
-                      <h3 className="mt-2 text-2xl font-bold text-slate-900">{vehicle.name}</h3>
-                    </div>
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">★ {vehicle.rating}</span>
-                  </div>
-                  <p className="mt-3 text-sm text-slate-600">{vehicle.city} • Available today</p>
-                  <div className="mt-5 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">From</p>
-                      <p className="text-2xl font-black text-slate-900">{vehicle.price}</p>
-                    </div>
-                    <a href="/vehicles/1" className="rounded-full bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white">View details</a>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
+      {loading ? (
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3" aria-label="Loading vehicles">
+          {[1, 2, 3].map((item) => <div key={item} className="h-80 animate-pulse rounded-2xl bg-slate-200" />)}
         </div>
-      </div>
+      ) : error ? (
+        <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+          <p>{error}</p>
+          <button onClick={() => { setError(''); setLoading(true); setReload((value) => value + 1); }} className="mt-3 font-semibold underline">Try again</button>
+        </div>
+      ) : visibleVehicles.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <CarFront className="mx-auto text-slate-400" size={32} />
+          <h2 className="mt-3 font-bold text-slate-900">{query || category ? 'No matching vehicles' : 'No vehicles available yet'}</h2>
+          <p className="mt-1 text-sm text-slate-600">{query || category ? 'Try another search or clear the category filter.' : 'Approved and available vendor listings will appear here.'}</p>
+          {(query || category) && <button onClick={() => { setQuery(''); setCategory(''); }} className="mt-3 text-sm font-semibold text-brand-600 hover:underline">Clear filters</button>}
+        </div>
+      ) : (
+        <>
+          <p className="mb-3 text-sm text-slate-500">{visibleVehicles.length} available {visibleVehicles.length === 1 ? 'vehicle' : 'vehicles'}</p>
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {visibleVehicles.map((vehicle) => {
+              const title = vehicle.title || vehicle.name || `${vehicle.brand || ''} ${vehicle.model || ''}`.trim();
+              const rate = vehicle.dailyrate || vehicle.dailyRate || vehicle.priceperday;
+              return (
+                <article key={vehicle.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+                  <div className="flex h-48 items-center justify-center bg-gradient-to-br from-slate-100 via-orange-50 to-orange-100 text-brand-600">
+                    <CarFront size={64} aria-hidden="true" />
+                  </div>
+                  <div className="p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-600">{vehicle.category || 'Vehicle'}</p>
+                        <h2 className="mt-2 text-xl font-bold text-slate-900">{title}</h2>
+                      </div>
+                      {Number(vehicle.rating) > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-sm font-bold text-amber-600"><Star size={14} fill="currentColor" />{Number(vehicle.rating).toFixed(1)}</span>}
+                    </div>
+                    <p className="mt-3 flex items-center gap-1 text-sm text-slate-600"><MapPin size={15} />{vehicle.city || vehicle.location || 'Location not listed'}</p>
+                    <div className="mt-5 flex items-end justify-between border-t border-slate-100 pt-4">
+                      <div>
+                        <p className="text-xs text-slate-500">Daily rate</p>
+                        <p className="text-xl font-black text-slate-900">{formatCurrency(rate)}<span className="text-xs font-medium text-slate-500"> / day</span></p>
+                      </div>
+                      <Link to={`/vehicles/${vehicle.id}`} className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700">View details</Link>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }

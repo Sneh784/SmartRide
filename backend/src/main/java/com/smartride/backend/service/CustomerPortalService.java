@@ -9,6 +9,7 @@ import com.smartride.backend.dto.CustomerSupportRequest;
 import com.smartride.backend.dto.CustomerBookingReviewRequest;
 import com.smartride.backend.entity.User;
 import com.smartride.backend.repository.CustomerPortalRepository;
+import com.smartride.backend.repository.VehicleCatalogRepository;
 import com.smartride.backend.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,12 +33,15 @@ public class CustomerPortalService {
     private static final Logger LOGGER = LoggerFactory.getLogger(CustomerPortalService.class);
     private final UserRepository userRepository;
     private final CustomerPortalRepository portalRepository;
+    private final VehicleCatalogRepository vehicleCatalogRepository;
     private final CustomerKycDocumentStorage kycDocumentStorage;
 
     public CustomerPortalService(UserRepository userRepository, CustomerPortalRepository portalRepository,
+                                 VehicleCatalogRepository vehicleCatalogRepository,
                                  CustomerKycDocumentStorage kycDocumentStorage) {
         this.userRepository = userRepository;
         this.portalRepository = portalRepository;
+        this.vehicleCatalogRepository = vehicleCatalogRepository;
         this.kycDocumentStorage = kycDocumentStorage;
     }
 
@@ -91,12 +95,12 @@ public class CustomerPortalService {
 
     public List<Map<String, Object>> vehicles(String email) {
         requireCustomer(email);
-        return portalRepository.findVehicles();
+        return vehicleCatalogRepository.findAvailableVehicles();
     }
 
     public Map<String, Object> vehicle(String email, long vehicleId) {
         requireCustomer(email);
-        return portalRepository.findAvailableVehicle(vehicleId);
+        return vehicleCatalogRepository.findAvailableVehicle(vehicleId);
     }
 
     @Transactional
