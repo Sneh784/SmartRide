@@ -34,6 +34,8 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -95,8 +97,13 @@ class BackendApplicationTests {
 		String suffix = UUID.randomUUID().toString();
 		String email = "vendor-" + suffix + "@example.com";
 		byte[] pdf = "%PDF-1.4\nvendor test document".getBytes(StandardCharsets.UTF_8);
-		when(vendorDocumentStorage.store(any(), anyBoolean())).thenAnswer(invocation ->
-				new VendorDocumentStorage.StoredFile(UUID.randomUUID() + ".pdf", ".pdf", "application/pdf"));
+		byte[] png = new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a};
+		when(vendorDocumentStorage.store(any(), anyBoolean())).thenAnswer(invocation -> {
+			boolean imageOnly = invocation.getArgument(1);
+			String extension = imageOnly ? ".png" : ".pdf";
+			String contentType = imageOnly ? "image/png" : "application/pdf";
+			return new VendorDocumentStorage.StoredFile(UUID.randomUUID() + extension, extension, contentType);
+		});
 
 		var application = Map.ofEntries(
 				Map.entry("fullName", "Integration Vendor"),
@@ -109,6 +116,7 @@ class BackendApplicationTests {
 				Map.entry("businessEmail", "business-" + suffix + "@example.com"),
 				Map.entry("businessMobile", "+91 98765-43211"),
 				Map.entry("businessAddress", "1 Test Street"),
+				Map.entry("registrationNumber", "REG-" + suffix.substring(0, 8)),
 				Map.entry("city", "Bengaluru"),
 				Map.entry("state", "Karnataka"),
 				Map.entry("pincode", "560001"),
@@ -119,17 +127,43 @@ class BackendApplicationTests {
 
 		mockMvc.perform(multipart("/api/vendor/auth/register")
 						.file(applicationPart)
+						.file(new MockMultipartFile("profileImage", "profile.png", "image/png", png))
 						.file(new MockMultipartFile("identityProof", "identity.pdf", "application/pdf", pdf))
 						.file(new MockMultipartFile("panCard", "pan.pdf", "application/pdf", pdf))
+						.file(new MockMultipartFile("businessDocument", "registration.pdf", "application/pdf", pdf))
 						.file(new MockMultipartFile("addressProof", "address.pdf", "application/pdf", pdf)))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.status").value("PENDING"))
 				.andExpect(jsonPath("$.email").value(email));
 
+		String applicationNumber = jdbcTemplate.queryForObject(
+				"SELECT application_number FROM vendor_applications WHERE user_id = "
+						+ "(SELECT id FROM users WHERE email = ?)", String.class, email);
+		org.junit.jupiter.api.Assertions.assertEquals(5, jdbcTemplate.queryForObject("""
+				SELECT COUNT(*) FROM vendor_documents d
+				JOIN vendor_applications a ON a.id = d.application_id
+				WHERE a.application_number = ?
+				""", Integer.class, applicationNumber));
+		org.junit.jupiter.api.Assertions.assertEquals(1, jdbcTemplate.queryForObject("""
+				SELECT COUNT(*) FROM vendor_documents d
+				JOIN vendor_applications a ON a.id = d.application_id
+				WHERE a.application_number = ? AND d.document_type = 'PROFILE_IMAGE'
+				  AND d.content_type = 'image/png'
+				""", Integer.class, applicationNumber));
+		org.junit.jupiter.api.Assertions.assertEquals(1, jdbcTemplate.queryForObject("""
+				SELECT COUNT(*) FROM vendor_documents d
+				JOIN vendor_applications a ON a.id = d.application_id
+				WHERE a.application_number = ? AND d.document_type = 'BUSINESS_REGISTRATION'
+				  AND d.content_type = 'application/pdf'
+				""", Integer.class, applicationNumber));
+		verify(vendorDocumentStorage, times(5)).store(any(), anyBoolean());
+
 		mockMvc.perform(multipart("/api/vendor/auth/register")
 						.file(applicationPart)
+						.file(new MockMultipartFile("profileImage", "profile.png", "image/png", png))
 						.file(new MockMultipartFile("identityProof", "identity.pdf", "application/pdf", pdf))
 						.file(new MockMultipartFile("panCard", "pan.pdf", "application/pdf", pdf))
+						.file(new MockMultipartFile("businessDocument", "registration.pdf", "application/pdf", pdf))
 						.file(new MockMultipartFile("addressProof", "address.pdf", "application/pdf", pdf)))
 				.andExpect(status().isConflict())
 				.andExpect(jsonPath("$.message").value("An account with this email already exists"));

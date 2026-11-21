@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authApi } from '../api/authApi';
 import { useAuth } from '../context/AuthContext';
+import PasswordInput from '../components/ui/PasswordInput';
 
 export default function DriverLogin() {
   const navigate = useNavigate();
@@ -45,7 +46,7 @@ export default function DriverLogin() {
           </label>
           <label className="block">
             <span className="mb-1.5 block text-sm font-semibold text-slate-700">Password</span>
-            <input required type="password" autoComplete="current-password" value={form.password} onChange={(event) => setForm((value) => ({ ...value, password: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-orange-100" />
+            <PasswordInput required autoComplete="current-password" value={form.password} onChange={(event) => setForm((value) => ({ ...value, password: event.target.value }))} visibilityLabel="password" className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-orange-100" />
           </label>
           {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
           <button type="submit" disabled={loading} className="w-full rounded-xl bg-[#FF6B00] px-4 py-3 font-bold text-white hover:bg-[#E85D00] disabled:opacity-60">{loading ? 'Signing in…' : 'Log in'}</button>

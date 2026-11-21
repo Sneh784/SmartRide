@@ -3,12 +3,14 @@ import {
   CarFront,
   CreditCard,
   MapPin,
+  Search,
   ShieldCheck,
   Star,
   Users,
 } from 'lucide-react';
-import { useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import './Home.css';
 
 const vehicles = [
   {
@@ -95,8 +97,61 @@ const reviews = [
   },
 ];
 
+function dateInputValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function nextDateInputValue(value) {
+  const [year, month, day] = value.split('-').map(Number);
+  return dateInputValue(new Date(year, month - 1, day + 1));
+}
+
 export default function Home() {
   const { hash } = useLocation();
+  const navigate = useNavigate();
+  const [pickupLocation, setPickupLocation] = useState('Pune');
+  const [pickupDate, setPickupDate] = useState('');
+  const [returnDate, setReturnDate] = useState('');
+  const [rentalMode, setRentalMode] = useState('Self-drive');
+  const [minimumDate] = useState(() => dateInputValue(new Date()));
+
+  const searchVehicles = (event) => {
+    event.preventDefault();
+    const searchParams = new URLSearchParams({
+      location: pickupLocation.trim(),
+      pickupDate,
+      returnDate,
+      mode: rentalMode,
+    });
+    navigate(`/vehicles?${searchParams.toString()}`);
+  };
+
+  useEffect(() => {
+    const revealElements = document.querySelectorAll('[data-home-reveal]');
+
+    if (!('IntersectionObserver' in window)) {
+      revealElements.forEach((element) => element.classList.add('is-visible'));
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12 },
+    );
+
+    revealElements.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!hash) return undefined;
@@ -112,92 +167,163 @@ export default function Home() {
   }, [hash]);
 
   return (
-    <div className="bg-[#f3f5f8] text-slate-900">
+    <div className="home-page bg-[#f3f5f8] text-slate-900">
       <section className="mx-auto max-w-[1600px] px-4 pb-8 pt-4 sm:px-6 lg:px-8">
-        <div
-          className="relative overflow-hidden rounded-[34px] border border-slate-200 bg-slate-900 shadow-[0_30px_80px_rgba(15,23,42,0.25)]"
-          style={{
-            backgroundImage:
-              "linear-gradient(90deg, rgba(18,24,32,0.72) 0%, rgba(18,24,32,0.56) 30%, rgba(18,24,32,0.24) 100%), url('https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=1800&q=80')",
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        >
-          <div className="px-5 pb-10 pt-8 sm:px-10 lg:px-12 lg:pb-12 lg:pt-10">
-            <div className="max-w-[760px] text-white">
-              <span className="inline-flex rounded-full border border-orange-300/60 bg-[#ff6b00]/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white shadow-sm">
-                Verified vendors • Secure deposits
-              </span>
+        <div className="home-hero relative overflow-hidden rounded-[34px] border border-slate-200 bg-slate-900 shadow-[0_30px_80px_rgba(15,23,42,0.25)]">
+          <div className="relative z-10 px-5 pb-10 pt-8 sm:px-10 lg:px-12 lg:pb-12 lg:pt-10">
+            <div className="home-hero-layout">
+              <div className="home-hero-copy max-w-[640px] text-white">
+                <span className="inline-flex rounded-full border border-orange-300/60 bg-[#ff6b00]/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white shadow-sm">
+                  Verified vendors • Secure deposits
+                </span>
 
-              <h1 className="mt-7 text-5xl font-black leading-[0.98] tracking-[-0.06em] text-white sm:text-6xl lg:text-[78px]">
-                Rent the right vehicle, your way.
-              </h1>
+                <h1 className="mt-7 text-5xl font-black leading-[0.98] tracking-[-0.06em] text-white sm:text-6xl lg:text-[68px]">
+                  Your next great drive starts here.
+                </h1>
 
-              <p className="mt-5 max-w-[680px] text-base text-slate-200 sm:text-lg">
-                Drive yourself or ride with a professional chauffeur. Transparent pricing, KYC in minutes, and live trip tracking.
-              </p>
+                <p className="mt-5 max-w-[580px] text-base text-slate-200 sm:text-lg">
+                  Find your ride, choose your route, and make the journey yours. Self-drive or go with a professional chauffeur.
+                </p>
+              </div>
+
+              <div className="home-drive-scene" aria-hidden="true">
+                <svg className="home-landscape" viewBox="0 0 720 360" preserveAspectRatio="xMidYMid slice">
+                  <defs>
+                    <linearGradient id="home-sky" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#172c48" />
+                      <stop offset="100%" stopColor="#ed8a55" />
+                    </linearGradient>
+                    <linearGradient id="home-road" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor="#354456" />
+                      <stop offset="100%" stopColor="#111a27" />
+                    </linearGradient>
+                    <radialGradient id="home-sun">
+                      <stop offset="0%" stopColor="#ffd7a3" stopOpacity=".95" />
+                      <stop offset="100%" stopColor="#ff8b57" stopOpacity=".08" />
+                    </radialGradient>
+                  </defs>
+                  <rect width="720" height="360" fill="url(#home-sky)" />
+                  <circle cx="520" cy="104" r="94" fill="url(#home-sun)" />
+                  <circle cx="520" cy="104" r="33" fill="#ffd7a3" opacity=".8" />
+                  <path d="M0 220 104 135l68 64 92-112 112 127 95-98 116 103 73-64 60 41v164H0Z" fill="#25394b" opacity=".76" />
+                  <path d="m0 252 126-83 97 71 112-96 111 101 105-73 91 73 78-49v164H0Z" fill="#172b3b" />
+                  <path d="M-30 295c166-85 282-43 404 3 127 48 212-18 383-72v134H-30Z" fill="url(#home-road)" />
+                  <path d="M-20 292c164-77 280-37 394 5 128 47 220-17 365-63" fill="none" stroke="#718092" strokeWidth="3" opacity=".7" />
+                  <path className="home-road-markings" d="M-20 292c164-77 280-37 394 5 128 47 220-17 365-63" fill="none" stroke="#f8d7a4" strokeWidth="3" strokeDasharray="16 22" opacity=".72" />
+                </svg>
+
+                <svg className="home-driving-car" viewBox="0 0 320 130">
+                  <ellipse cx="160" cy="111" rx="136" ry="12" fill="#09111a" opacity=".52" />
+                  <path d="M37 84 54 62c8-11 20-18 34-20l36-5 29-25c7-6 15-9 24-9h42c10 0 19 5 25 13l25 30 25 8c9 3 15 11 15 21v19H37Z" fill="#ff7628" />
+                  <path d="m131 43 23-20c4-3 9-5 14-5h27v25Z" fill="#b9d8e5" />
+                  <path d="M204 18h14c6 0 11 3 15 8l21 26h-50Z" fill="#8bb4c9" />
+                  <path d="M124 57h133" stroke="#ffb16e" strokeWidth="3" opacity=".8" />
+                  <path d="M48 82h35m189 0h24" stroke="#ffd394" strokeWidth="7" strokeLinecap="round" />
+                  <path d="M153 43v14" stroke="#d64e18" strokeWidth="3" />
+                  <circle className="home-car-wheel" cx="91" cy="91" r="22" fill="#101722" />
+                  <circle cx="91" cy="91" r="10" fill="#aebbc4" />
+                  <circle className="home-car-wheel" cx="251" cy="91" r="22" fill="#101722" />
+                  <circle cx="251" cy="91" r="10" fill="#aebbc4" />
+                </svg>
+              </div>
             </div>
 
-            <form className="mt-8 grid gap-3 rounded-[24px] border border-slate-200/60 bg-white/95 p-4 text-slate-900 shadow-xl backdrop-blur-sm md:grid-cols-[1.2fr_1fr_1fr_1fr_auto] lg:mt-10">
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <form onSubmit={searchVehicles} className="home-search-bar mt-8 grid gap-3 rounded-[24px] border border-slate-200/60 bg-white/95 p-4 text-slate-900 shadow-xl backdrop-blur-sm md:grid-cols-[1.2fr_1fr_1fr_1fr_auto] lg:mt-10">
+              <div className="home-search-intro flex items-center justify-between gap-3 md:col-span-full">
+                <div>
+                  <p className="text-lg font-extrabold tracking-tight text-slate-900">Plan your next drive</p>
+                  <p className="mt-0.5 text-sm text-slate-500">Choose your pickup city and travel dates.</p>
+                </div>
+                <span className="hidden rounded-full bg-orange-50 px-3 py-1.5 text-xs font-semibold text-[#d95400] sm:inline-flex">
+                  Your ride, your way
+                </span>
+              </div>
+
+              <label htmlFor="home-pickup-location" className="flex min-w-0 cursor-text items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <MapPin className="h-4 w-4 text-[#ff6b00]" />
                 <div className="min-w-0 flex-1">
                   <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Pickup location</span>
                   <input
+                    id="home-pickup-location"
+                    name="location"
+                    type="text"
+                    maxLength={100}
+                    required
                     className="mt-1 w-full bg-transparent text-base font-medium text-slate-900 outline-none placeholder:text-slate-400"
-                    value="Pune"
-                    readOnly
+                    value={pickupLocation}
+                    onChange={(event) => setPickupLocation(event.target.value)}
                   />
                 </div>
-              </div>
+              </label>
 
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <label htmlFor="home-pickup-date" className="flex min-w-0 cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <CalendarRange className="h-4 w-4 text-[#ff6b00]" />
                 <div className="min-w-0 flex-1">
-                  <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Pickup date</span>
+                  <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Start date</span>
                   <input
-                    className="mt-1 w-full bg-transparent text-base font-medium text-slate-900 outline-none placeholder:text-slate-400"
-                    value="10/28/2026"
-                    readOnly
+                    id="home-pickup-date"
+                    name="pickupDate"
+                    type="date"
+                    min={minimumDate}
+                    required
+                    className="mt-1 w-full min-w-0 cursor-pointer bg-transparent text-sm font-medium text-slate-900 outline-none"
+                    value={pickupDate}
+                    onChange={(event) => {
+                      const nextPickupDate = event.target.value;
+                      setPickupDate(nextPickupDate);
+                      if (returnDate && returnDate < nextDateInputValue(nextPickupDate)) setReturnDate('');
+                    }}
                   />
                 </div>
-              </div>
+              </label>
 
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <label htmlFor="home-return-date" className="flex min-w-0 cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <CalendarRange className="h-4 w-4 text-[#ff6b00]" />
                 <div className="min-w-0 flex-1">
-                  <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Return date</span>
+                  <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">End date</span>
                   <input
-                    className="mt-1 w-full bg-transparent text-base font-medium text-slate-900 outline-none placeholder:text-slate-400"
-                    value="10/30/2026"
-                    readOnly
+                    id="home-return-date"
+                    name="returnDate"
+                    type="date"
+                    min={pickupDate ? nextDateInputValue(pickupDate) : minimumDate}
+                    required
+                    className="mt-1 w-full min-w-0 cursor-pointer bg-transparent text-sm font-medium text-slate-900 outline-none"
+                    value={returnDate}
+                    onChange={(event) => setReturnDate(event.target.value)}
                   />
                 </div>
-              </div>
+              </label>
 
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <label htmlFor="home-rental-mode" className="flex min-w-0 cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <CarFront className="h-4 w-4 text-[#ff6b00]" />
                 <div className="min-w-0 flex-1">
                   <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Rental mode</span>
-                  <select className="mt-1 w-full bg-transparent text-base font-medium text-slate-900 outline-none">
+                  <select
+                    id="home-rental-mode"
+                    name="mode"
+                    value={rentalMode}
+                    onChange={(event) => setRentalMode(event.target.value)}
+                    className="mt-1 w-full cursor-pointer bg-transparent text-base font-medium text-slate-900 outline-none"
+                  >
                     <option>Self-drive</option>
                     <option>With driver</option>
                   </select>
                 </div>
-              </div>
+              </label>
 
               <button
                 type="submit"
-                className="inline-flex items-center justify-center rounded-2xl bg-[#ff6b00] px-6 py-4 text-base font-semibold text-white shadow-lg shadow-orange-500/25 transition hover:bg-[#e85d00]"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#ff6b00] px-6 py-4 text-base font-semibold text-white shadow-lg shadow-orange-500/25 transition hover:bg-[#e85d00]"
               >
-                Search
+                <Search className="h-4 w-4" />
+                Find rides
               </button>
             </form>
           </div>
         </div>
       </section>
 
-      <section id="popular-vehicles" className="scroll-mt-24 mx-auto max-w-[1280px] px-4 py-10 sm:px-6 lg:px-8">
+      <section id="popular-vehicles" data-home-reveal className="home-reveal scroll-mt-24 mx-auto max-w-[1280px] px-4 py-10 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-4xl font-black tracking-[-0.05em] text-slate-900">Popular vehicles</h2>
@@ -210,7 +336,7 @@ export default function Home() {
 
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
           {vehicles.map((vehicle) => (
-            <article key={vehicle.name} className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
+            <article key={vehicle.name} className="home-card overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
               <div className="relative">
                 <div className="mb-3 flex items-center justify-between px-4 pt-4">
                   <span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600">
@@ -258,14 +384,14 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="categories" className="scroll-mt-24 mx-auto max-w-[1280px] px-4 py-10 sm:px-6 lg:px-8">
+      <section id="categories" data-home-reveal className="home-reveal scroll-mt-24 mx-auto max-w-[1280px] px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-7">
           <h2 className="text-4xl font-black tracking-[-0.05em] text-slate-900">Browse by category</h2>
         </div>
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {categories.map(({ name, count, icon: Icon }) => (
-            <div key={name} className="rounded-[24px] border border-slate-200 bg-white p-5 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+            <div key={name} className="home-card rounded-[24px] border border-slate-200 bg-white p-5 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff5ee] text-[#ff6b00]">
                 <Icon className="h-6 w-6" />
               </div>
@@ -276,14 +402,14 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="why-smarride" className="scroll-mt-24 mx-auto max-w-[1280px] px-4 py-10 sm:px-6 lg:px-8">
+      <section id="why-smarride" data-home-reveal className="home-reveal scroll-mt-24 mx-auto max-w-[1280px] px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h2 className="text-4xl font-black tracking-[-0.05em] text-slate-900">Why SmartRide</h2>
         </div>
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {highlights.map(({ icon: Icon, title, text }) => (
-            <div key={title} className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
+            <div key={title} className="home-card rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
               <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff5ee] text-[#ff6b00]">
                 <Icon className="h-6 w-6" />
               </div>
@@ -294,10 +420,10 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1280px] px-4 py-10 sm:px-6 lg:px-8">
+      <section data-home-reveal className="home-reveal mx-auto max-w-[1280px] px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid gap-5 md:grid-cols-3">
           {reviews.map((review) => (
-            <div key={review.author} className="rounded-[22px] border border-slate-200 bg-white p-6 shadow-sm">
+            <div key={review.author} className="home-card rounded-[22px] border border-slate-200 bg-white p-6 shadow-sm">
               <div className="mb-4 flex items-center gap-1 text-[#ff6b00]">
                 {Array.from({ length: 5 }).map((_, index) => (
                   <Star key={index} className="h-4 w-4 fill-current" />
@@ -310,8 +436,8 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="contact" className="scroll-mt-24 mx-auto max-w-[1280px] px-4 pb-10 pt-6 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-5 rounded-[28px] bg-[#ff6b00] px-8 py-8 text-white shadow-[0_25px_60px_rgba(255,107,0,0.25)] lg:flex-row lg:items-center lg:justify-between">
+      <section id="contact" data-home-reveal className="home-reveal scroll-mt-24 mx-auto max-w-[1280px] px-4 pb-10 pt-6 sm:px-6 lg:px-8">
+        <div className="home-card flex flex-col gap-5 rounded-[28px] bg-[#ff6b00] px-8 py-8 text-white shadow-[0_25px_60px_rgba(255,107,0,0.25)] lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-4xl font-black tracking-[-0.05em] text-white">Own vehicles or love driving?</h2>
             <p className="mt-2 text-lg text-orange-50">List your fleet or join as a driver and start earning with SmartRide.</p>
