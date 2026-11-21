@@ -22,6 +22,10 @@ import VendorVehicleForm from './pages/vendor/VendorVehicleForm';
 import { VendorBookings, VendorDocuments, VendorNotifications, VendorPayments, VendorProfile, VendorUnavailablePage } from './pages/vendor/VendorDataPages';
 import RequireVendor from './routes/RequireVendor';
 import RequireDriver from './routes/RequireDriver';
+import RequireFleetManager from './routes/RequireFleetManager';
+import FleetManagerLogin from './pages/fleetManager/FleetManagerLogin';
+import FleetManagerLayout from './components/fleetManager/FleetManagerLayout';
+import FleetManagerWorkspace from './pages/fleetManager/FleetManagerWorkspace';
 import CustomerLayout from './components/customer/CustomerLayout';
 import RequireCustomer from './routes/RequireCustomer';
 import { CustomerBookings, CustomerDashboard as CustomerHome, CustomerKyc, CustomerNotifications, CustomerPayments, CustomerProfile, CustomerSupport, CustomerVehicleDetails, CustomerVehicles, CustomerWishlist } from './pages/customer/CustomerPages';
@@ -30,6 +34,7 @@ import AdminLayout from './components/admin/AdminLayout';
 import RequireAdmin from './routes/RequireAdmin';
 import AdminWorkspace from './pages/admin/AdminWorkspace';
 import AdminDriverApplications from './pages/admin/DriverApplications';
+import AdminFleetManagerAccess from './pages/admin/AdminFleetManagerAccess';
 import { ToastProvider } from './components/ui/ToastProvider';
 
 function App() {
@@ -48,6 +53,7 @@ function App() {
             <Route path="/vendor/login" element={<VendorLogin />} />
             <Route path="/driver/login" element={<DriverLogin />} />
             <Route path="/driver/register" element={<DriverForm />} />
+            <Route path="/fleet-manager/login" element={<FleetManagerLogin />} />
            
             <Route path="/vehicles" element={<BrowseVehicles />} />
             <Route path="/vehicles/:id" element={<VehicleDetails />} />
@@ -96,6 +102,26 @@ function App() {
               </Route>
               <Route path="/vendor-dashboard" element={<Navigate to="/vendor/dashboard" replace />} />
             </Route>
+            <Route element={<RequireFleetManager />}>
+              <Route path="/fleet-manager" element={<FleetManagerLayout />}>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<FleetManagerWorkspace />} />
+                <Route path="vehicles" element={<FleetManagerWorkspace />} />
+                <Route path="vehicle-assignments" element={<FleetManagerWorkspace />} />
+                <Route path="drivers" element={<FleetManagerWorkspace />} />
+                <Route path="availability" element={<FleetManagerWorkspace />} />
+                <Route path="active-rentals" element={<FleetManagerWorkspace />} />
+                <Route path="maintenance/schedule" element={<FleetManagerWorkspace />} />
+                <Route path="maintenance/requests" element={<FleetManagerWorkspace />} />
+                <Route path="maintenance/history" element={<FleetManagerWorkspace />} />
+                <Route path="utilization" element={<FleetManagerWorkspace />} />
+                <Route path="reports" element={<FleetManagerWorkspace />} />
+                <Route path="analytics" element={<FleetManagerWorkspace />} />
+                <Route path="notifications" element={<FleetManagerWorkspace />} />
+                <Route path="profile" element={<FleetManagerWorkspace />} />
+                <Route path="settings" element={<FleetManagerWorkspace />} />
+              </Route>
+            </Route>
             <Route element={<RequireDriver />}>
               <Route path="/driver/dashboard" element={<DriverDashboard />} />
               <Route path="/driver-dashboard" element={<Navigate to="/driver/dashboard" replace />} />
@@ -110,6 +136,7 @@ function App() {
                 <Route path="drivers" element={<AdminDriverApplications />} />
                 <Route path="customers" element={<AdminWorkspace />} />
                 <Route path="fleet-managers" element={<AdminWorkspace />} />
+                <Route path="fleet-manager-access" element={<AdminFleetManagerAccess />} />
                 <Route path="vehicles" element={<AdminWorkspace />} />
                 <Route path="bookings" element={<AdminWorkspace />} />
                 <Route path="payments" element={<AdminWorkspace />} />

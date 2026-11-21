@@ -57,6 +57,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static boolean isRoleAccessApproved(User user, String role) {
         if ("CUSTOMER".equals(role) || "ADMIN".equals(role)) return true;
+        if ("FLEET_MANAGER".equals(role)) {
+            return user.isActive() && user.getApprovalStatus() != null
+                    && "ACTIVE".equals(user.getApprovalStatus().trim().toUpperCase(Locale.ROOT));
+        }
         return user.getApprovalStatus() != null
                 && "APPROVED".equals(user.getApprovalStatus().trim().toUpperCase(Locale.ROOT));
     }

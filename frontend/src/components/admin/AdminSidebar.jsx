@@ -1,6 +1,6 @@
 import {
   Bell, Building2, CarFront, ChartNoAxesCombined, ChevronLeft, ChevronRight, CircleHelp,
-  CreditCard, FileCheck2, LayoutDashboard, LogOut, ReceiptText, Settings,
+  CreditCard, FileCheck2, LayoutDashboard, LogOut, ReceiptText, Settings, ShieldCheck,
   UserRound, Users, X,
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
@@ -13,7 +13,8 @@ const items = [
   ['Pending Vendor Approvals','/admin/vendors/pending',FileCheck2],
   ['Approved Vendors','/admin/vendors/approved',Building2],['Rejected Vendors','/admin/vendors/rejected',Building2],
   ['Driver Management','/admin/drivers',CarFront],['Customer Management','/admin/customers',Users],
-  ['Fleet Managers','/admin/fleet-managers',UserRound],['Vehicle Management','/admin/vehicles',CarFront],
+  ['Fleet Managers','/admin/fleet-managers',UserRound],['Fleet Manager Access','/admin/fleet-manager-access',ShieldCheck],
+  ['Vehicle Management','/admin/vehicles',CarFront],
   ['Booking Management','/admin/bookings',ReceiptText],['Payment Management','/admin/payments',CreditCard],
   ['KYC Verification','/admin/kyc',FileCheck2],['Reports & Analytics','/admin/reports',ChartNoAxesCombined],
   ['Complaints & Support','/admin/support',CircleHelp],['Notifications','/admin/notifications',Bell],

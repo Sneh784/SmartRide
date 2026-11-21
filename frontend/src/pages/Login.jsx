@@ -40,7 +40,7 @@ export default function Login() {
         CUSTOMER: '/customer/dashboard',
         VENDOR: '/vendor/dashboard',
         DRIVER: '/driver/dashboard',
-        FLEET_MANAGER: '/vendor-dashboard',
+        FLEET_MANAGER: '/fleet-manager/dashboard',
         ADMIN: '/admin-dashboard',
       };
       navigate(location.state?.from?.pathname || destinations[userData.role] || '/', { replace: true });
@@ -102,6 +102,10 @@ export default function Login() {
           <p className="mt-6 text-sm text-slate-600">
             Don&apos;t have an account?{' '}
             <Link to="/register" className="font-semibold text-[#ff6b00]">Create one</Link>
+          </p>
+          <p className="mt-3 text-sm text-slate-600">
+            Fleet Manager?{' '}
+            <Link to="/fleet-manager/login" className="font-semibold text-[#ff6b00]">Sign in here</Link>
           </p>
         </div>
       </div>

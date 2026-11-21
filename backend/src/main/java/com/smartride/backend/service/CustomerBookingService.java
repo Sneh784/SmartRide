@@ -202,6 +202,8 @@ public class CustomerBookingService {
                     WHERE id = ?
                       AND UPPER(COALESCE(approval_status, 'PENDING')) = 'APPROVED'
                       AND UPPER(COALESCE(availability_status, 'UNAVAILABLE')) = 'AVAILABLE'
+                      AND UPPER(COALESCE(operational_status, 'AVAILABLE'))
+                          NOT IN ('INACTIVE', 'ASSIGNED', 'ON_RENT', 'UNDER_MAINTENANCE')
                     """ + lockClause, vehicleId));
         } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND,

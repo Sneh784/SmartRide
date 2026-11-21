@@ -4,7 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { adminApi } from '../../api/adminApi';
 import { useAuth } from '../../context/AuthContext';
 
-const labels = {dashboard:'Dashboard',vendors:'Vendor Management',pending:'Pending Vendor Approvals',approved:'Approved Vendors',rejected:'Rejected Vendors',drivers:'Driver Management',customers:'Customer Management','fleet-managers':'Fleet Manager Management',vehicles:'Vehicle Management',bookings:'Booking Management',payments:'Payment Management',kyc:'KYC Verification',reports:'Reports & Analytics',support:'Complaints & Support',notifications:'Notifications',settings:'Settings'};
+const labels = {dashboard:'Dashboard',vendors:'Vendor Management',pending:'Pending Vendor Approvals',approved:'Approved Vendors',rejected:'Rejected Vendors',drivers:'Driver Management',customers:'Customer Management','fleet-managers':'Fleet Manager Management','fleet-manager-access':'Fleet Manager Access',vehicles:'Vehicle Management',bookings:'Booking Management',payments:'Payment Management',kyc:'KYC Verification',reports:'Reports & Analytics',support:'Complaints & Support',notifications:'Notifications',settings:'Settings'};
 export default function AdminHeader({ onOpenDrawer }) {
   const {user}=useAuth(); const location=useLocation(); const [unread,setUnread]=useState(0);
   const section=location.pathname.split('/').filter(Boolean).at(-1)||'dashboard';

@@ -6,6 +6,7 @@ export default function AppShell({ children }) {
   const { pathname } = useLocation();
   if (pathname === '/customer' || pathname.startsWith('/customer/') || pathname === '/admin' || pathname.startsWith('/admin/')
     || pathname === '/vendor' || pathname.startsWith('/vendor/dashboard') || pathname.startsWith('/vendor/vehicles')
+    || pathname === '/fleet-manager' || pathname.startsWith('/fleet-manager/')
     || pathname.startsWith('/vendor/vehicle-approval') || pathname.startsWith('/vendor/bookings')
     || pathname.startsWith('/vendor/active-rentals') || pathname.startsWith('/vendor/booking-history')
     || pathname.startsWith('/vendor/earnings') || pathname.startsWith('/vendor/payments')
@@ -20,6 +21,7 @@ export default function AppShell({ children }) {
     '/vendor/register',
     '/driver/login',
     '/admin/login',
+    '/fleet-manager/login',
     '/driver/register',
   ].includes(pathname);
 

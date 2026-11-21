@@ -44,4 +44,9 @@ export const adminApi = {
   settings: () => client.get('/settings'),
   saveSetting: (key, value) => client.put(`/settings/${key}`, { value }),
   changePassword: (payload) => client.put('/settings/password', payload),
+  fleetManagerAccess: () => client.get('/fleet-manager-access'),
+  grantFleetVehicle: (fleetManagerId, vehicleId) => client.post(`/fleet-manager-access/${fleetManagerId}/vehicles/${vehicleId}`),
+  revokeFleetVehicle: (fleetManagerId, vehicleId) => client.delete(`/fleet-manager-access/${fleetManagerId}/vehicles/${vehicleId}`),
+  grantFleetDriver: (fleetManagerId, driverId) => client.post(`/fleet-manager-access/${fleetManagerId}/drivers/${driverId}`),
+  revokeFleetDriver: (fleetManagerId, driverId) => client.delete(`/fleet-manager-access/${fleetManagerId}/drivers/${driverId}`),
 };
