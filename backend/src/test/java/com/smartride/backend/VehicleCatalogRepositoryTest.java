@@ -39,7 +39,9 @@ class VehicleCatalogRepositoryTest {
                     "year" INT,
                     city VARCHAR(100),
                     location VARCHAR(200),
+                    color VARCHAR(50),
                     daily_rate DECIMAL(10, 2),
+                    hourly_rate DECIMAL(10, 2),
                     with_driver_rate DECIMAL(10, 2),
                     rating DECIMAL(3, 2),
                     availability_status VARCHAR(30),
@@ -49,6 +51,9 @@ class VehicleCatalogRepositoryTest {
                     transmission VARCHAR(30),
                     mileage INT,
                     security_deposit DECIMAL(10, 2),
+                    km_limit_per_day INT,
+                    extra_km_charge DECIMAL(10, 2),
+                    pickup_location VARCHAR(200),
                     description VARCHAR(500),
                     features VARCHAR(500),
                     operational_status VARCHAR(30),
@@ -93,13 +98,13 @@ class VehicleCatalogRepositoryTest {
                 """);
         jdbcTemplate.update("""
                 INSERT INTO vehicles (
-                    id, title, brand, model, category, "year", city, location, daily_rate,
+                    id, title, brand, model, category, "year", city, location, color, daily_rate, hourly_rate,
                     with_driver_rate, rating, availability_status, approval_status,
                     seating_capacity, fuel_type, transmission, mileage, security_deposit,
-                    description, features
+                    km_limit_per_day, extra_km_charge, pickup_location, description, features
                 ) VALUES (1, 'Vendor Sedan', 'Brand', 'Model', 'Sedan', 2024, 'Pune', 'Baner',
-                          2500, 500, 4.8, 'AVAILABLE', 'APPROVED', 5, 'Petrol', 'Automatic',
-                          18000, 5000, 'Clean sedan', 'Bluetooth, AC')
+                          'Blue', 2500, 300, 500, 4.8, 'AVAILABLE', 'APPROVED', 5, 'Petrol', 'Automatic',
+                          18000, 5000, 250, 10, 'Baner pickup point', 'Clean sedan', 'Bluetooth, AC')
                 """);
         jdbcTemplate.update("""
                 INSERT INTO vehicles (id, title, daily_rate, availability_status, approval_status)
@@ -108,7 +113,8 @@ class VehicleCatalogRepositoryTest {
                 """);
         jdbcTemplate.update("""
                 INSERT INTO vehicle_media (id, vehicle_id, media_type, storage_key, original_name, content_type)
-                VALUES (5, 1, 'PHOTO', 'vehicle-photo.jpg', 'vehicle.jpg', 'image/jpeg')
+                VALUES (5, 1, 'PHOTO', 'vehicle-photo.jpg', 'vehicle.jpg', 'image/jpeg'),
+                       (6, 1, 'PHOTO', 'vehicle-photo-2.jpg', 'vehicle-2.jpg', 'image/jpeg')
                 """);
     }
 
@@ -123,9 +129,17 @@ class VehicleCatalogRepositoryTest {
         assertEquals(new BigDecimal("2500.00"), vehicles.get(0).get("dailyrate"));
         assertEquals(5, vehicles.get(0).get("seatingcapacity"));
         assertEquals("Bluetooth, AC", vehicles.get(0).get("features"));
+        assertEquals("Blue", vehicles.get(0).get("color"));
+        assertEquals(new BigDecimal("300.00"), vehicles.get(0).get("hourlyrate"));
+        assertEquals(250, vehicles.get(0).get("kmlimitperday"));
+        assertEquals(new BigDecimal("10.00"), vehicles.get(0).get("extrakmcharge"));
         assertEquals(true, vehicles.get(0).get("isavailablenow"));
         assertEquals("/api/v1/vehicles/1/photos/5", vehicles.get(0).get("imageurl"));
-        assertEquals("Vendor Sedan", vehicleCatalogRepository.findAvailableVehicle(1).get("name"));
+        var vehicle = vehicleCatalogRepository.findAvailableVehicle(1);
+        assertEquals("Vendor Sedan", vehicle.get("name"));
+        assertEquals("Baner pickup point", vehicle.get("pickuplocation"));
+        assertEquals(java.util.List.of("/api/v1/vehicles/1/photos/5", "/api/v1/vehicles/1/photos/6"),
+                vehicle.get("photos"));
         assertEquals("vehicle-photo.jpg",
                 vehicleCatalogRepository.findAvailableVehiclePhoto(1, 5).storageKey());
         assertEquals(3L, vehicles.get(1).get("id"));

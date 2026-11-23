@@ -22,7 +22,7 @@ export default function DriverSidebar({ collapsed, drawerOpen, onClose, onToggle
   const { logout } = useAuth();
   const leave = () => {
     logout();
-    navigate('/driver/login', { replace: true });
+    navigate('/', { replace: true });
   };
 
   return (

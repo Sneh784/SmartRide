@@ -43,7 +43,7 @@ export function AuthProvider({ children }) {
       setUser,
       login,
       logout,
-      isAuthenticated: Boolean(token) || Boolean(user && user.email),
+      isAuthenticated: Boolean(token),
     }),
     [token, user],
   );

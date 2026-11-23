@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, Bell, CalendarDays, CarFront, CheckCircle2, CircleAlert, Clock3, CreditCard, Heart, LoaderCircle, MapPin, Star, UserRound, X } from 'lucide-react';
+import { ArrowRight, Bell, CalendarDays, CarFront, Check, CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Clock3, CreditCard, Fuel, Gauge, Heart, LoaderCircle, MapPin, Settings2, ShieldCheck, Star, UserRound, Users, X } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { bookingApi } from '../../api/bookingApi';
 import { customerApi } from '../../api/customerApi';
@@ -81,39 +81,125 @@ export function CustomerDashboard() {
 export function CustomerVehicleDetails() {
   const { vehicleId } = useParams();
   const { data: vehicle, loading, error, reload } = useRequest(() => customerApi.vehicle(vehicleId), [vehicleId]);
+  const [selectedPhoto, setSelectedPhoto] = useState({ vehicleId: null, index: 0 });
+  const [failedPhotos, setFailedPhotos] = useState(() => new Set());
   if (loading) return <Loading />;
   if (error) return <ErrorState message={error} retry={reload} />;
-  const dailyRate = vehicle.dailyrate || vehicle.daily_rate || 0;
-  const withDriverRate = vehicle.withdriverrate || vehicle.with_driver_rate;
-  const canBook = String(vehicle.availabilitystatus || vehicle.availability_status || '').toUpperCase() === 'AVAILABLE'
-    && String(vehicle.operationalstatus || vehicle.operational_status || 'AVAILABLE').toUpperCase() !== 'INACTIVE';
-  const availableNow = vehicle.isavailablenow ?? vehicle.isAvailableNow;
-  const image = (vehicle.imageurl || vehicle.imageUrl)
-    ? new URL(vehicle.imageurl || vehicle.imageUrl,
-      import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1').toString()
-    : '';
+  if (!vehicle) return <ErrorState message="Vehicle details are not available." />;
+
+  const read = (camel, snake = camel.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)) =>
+    vehicle[camel] ?? vehicle[camel.toLowerCase()] ?? vehicle[snake];
+  const photoPaths = Array.isArray(vehicle.photos) ? vehicle.photos : [];
+  const photoUrls = [...new Set(photoPaths.map((photo) => typeof photo === 'string' ? photo : photo?.url).filter(Boolean))];
+  if (!photoUrls.length && read('imageUrl')) photoUrls.push(read('imageUrl'));
+  const images = photoUrls.map((url) => new URL(url, import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1').toString());
+  const selectedPhotoIndex = selectedPhoto.vehicleId === vehicleId ? selectedPhoto.index : 0;
+  const currentPhoto = images[selectedPhotoIndex] || images[0];
+  const title = vehicle.title || vehicle.name || [vehicle.brand, vehicle.model].filter(Boolean).join(' ') || 'Vehicle';
+  const dailyRate = read('dailyRate') ?? read('pricePerDay') ?? 0;
+  const hourlyRate = read('hourlyRate');
+  const withDriverRate = read('withDriverRate');
+  const status = String(read('availabilityStatus') || 'UNAVAILABLE').toUpperCase();
+  const operationalStatus = String(read('operationalStatus') || 'AVAILABLE').toUpperCase();
+  const canBook = status === 'AVAILABLE' && operationalStatus !== 'INACTIVE';
+  const availableNow = read('isAvailableNow');
+  const availabilityText = availableNow
+    ? 'Available now'
+    : canBook ? 'Check dates for availability' : 'Not accepting bookings';
+  const featureValue = vehicle.features;
+  const features = (Array.isArray(featureValue) ? featureValue : String(featureValue || '').split(/[,;\n]/))
+    .map((feature) => String(feature).trim()).filter(Boolean);
+  const specifications = [
+    { label: 'Model year', value: read('modelYear'), icon: CalendarDays },
+    { label: 'Fuel type', value: read('fuelType'), icon: Fuel },
+    { label: 'Transmission', value: read('transmission'), icon: Settings2 },
+    { label: 'Seating capacity', value: read('seatingCapacity') ? `${read('seatingCapacity')} seats` : null, icon: Users },
+    { label: 'Mileage', value: read('mileage') ? `${read('mileage')} km/l` : null, icon: Gauge },
+    { label: 'Color', value: read('color'), icon: CarFront },
+  ].filter((item) => item.value);
+  const rentalConditions = [
+    { label: 'Rental mode', value: [
+      read('withoutDriverAvailable') !== false ? 'Self-drive' : null,
+      read('withDriverAvailable') ? 'With driver' : null,
+    ].filter(Boolean).join(' · ') || null },
+    { label: 'Security deposit', value: read('securityDeposit') != null ? money(read('securityDeposit')) : null },
+    { label: 'Daily distance limit', value: read('kmLimitPerDay') ? `${read('kmLimitPerDay')} km per day` : null },
+    { label: 'Extra distance charge', value: read('extraKmCharge') != null ? `${money(read('extraKmCharge'))} / km` : null },
+    { label: 'Hourly rate', value: hourlyRate != null ? `${money(hourlyRate)} / hour` : null },
+    { label: 'Driver rate', value: withDriverRate != null ? `${money(withDriverRate)} / day` : null },
+  ].filter((condition) => condition.value);
+  const stepPhoto = (direction) => {
+    setSelectedPhoto({ vehicleId, index: (selectedPhotoIndex + direction + images.length) % images.length });
+  };
+  const choosePhoto = (index) => setSelectedPhoto({ vehicleId, index });
+  const location = [vehicle.city, vehicle.location].filter(Boolean).join(', ');
+
   return (
-    <div className="mx-auto max-w-5xl">
-      <Link to="/customer/vehicles" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#B54700]"><ArrowRight className="rotate-180" size={16} />Back to vehicles</Link>
-      <div className="grid gap-6 lg:grid-cols-[1.15fr_.85fr]">
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="relative flex h-72 items-center justify-center overflow-hidden bg-gradient-to-br from-slate-100 via-orange-50 to-orange-100 text-[#E85D00]">{image ? <img src={image} alt={vehicle.title || vehicle.brand || 'Vehicle'} className="absolute inset-0 h-full w-full object-cover" /> : <CarFront size={100} strokeWidth={1.2} />}</div>
-          <div className="p-6 sm:p-8">
-            <p className="text-xs font-bold uppercase tracking-wider text-[#E85D00]">{vehicle.category || 'Available vehicle'}</p>
-            <h1 className="mt-2 text-3xl font-black text-slate-900">{vehicle.title || `${vehicle.brand || ''} ${vehicle.model || ''}`}</h1>
-            <p className="mt-3 flex items-center gap-2 text-sm text-slate-500"><MapPin size={16} />{vehicle.city || vehicle.location || 'Location not listed'}</p>
-            <p className="mt-6 text-sm leading-6 text-slate-600">{availableNow ? 'This approved vehicle is currently available.' : 'This approved vehicle is not available right now; choose dates to check future availability.'} The vendor will confirm the booking before online payment is enabled.</p>
+    <div className="mx-auto max-w-7xl">
+      <Link to="/customer/vehicles" className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-[#B54700]"><ArrowRight className="rotate-180" size={16} />Back to vehicles</Link>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#C64D00]">{vehicle.category || 'Vehicle'}</span>
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${availableNow ? 'bg-emerald-50 text-emerald-700' : canBook ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'}`}><span className={`h-1.5 w-1.5 rounded-full ${availableNow ? 'bg-emerald-500' : canBook ? 'bg-amber-500' : 'bg-slate-400'}`} />{availabilityText}</span>
+          </div>
+          <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">{title}</h1>
+          <p className="mt-2 flex items-center gap-2 text-sm text-slate-500"><MapPin size={16} className="text-[#E85D00]" />{location || 'Location not listed'}</p>
+        </div>
+        {Number(vehicle.rating) > 0 && <span className="inline-flex w-fit items-center gap-1.5 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-700"><Star size={16} fill="currentColor" />{Number(vehicle.rating).toFixed(1)} rating</span>}
+      </div>
+
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(300px,.75fr)]">
+        <section className="min-w-0">
+          <div className="relative flex aspect-[16/10] min-h-64 items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-slate-100 via-orange-50 to-orange-100 text-[#E85D00] shadow-sm sm:aspect-[16/9] lg:aspect-[1.55/1]">
+            {currentPhoto && !failedPhotos.has(currentPhoto)
+              ? <img key={currentPhoto} src={currentPhoto} alt={`${title} photo ${selectedPhotoIndex + 1}`} className="absolute inset-0 h-full w-full object-cover" onError={() => setFailedPhotos((current) => new Set([...current, currentPhoto]))} />
+              : <div className="flex flex-col items-center gap-3 text-slate-400"><CarFront size={76} strokeWidth={1.1} /><span className="text-sm">Vehicle photos unavailable</span></div>}
+            <span className="absolute bottom-4 left-4 rounded-full bg-slate-950/60 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">{images.length ? `${selectedPhotoIndex + 1} / ${images.length}` : 'Vehicle photos'}</span>
+            {images.length > 1 && <>
+              <button type="button" onClick={() => stepPhoto(-1)} aria-label="Previous vehicle photo" className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-800 shadow transition hover:bg-white"><ChevronLeft size={22} /></button>
+              <button type="button" onClick={() => stepPhoto(1)} aria-label="Next vehicle photo" className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-slate-800 shadow transition hover:bg-white"><ChevronRight size={22} /></button>
+            </>}
+          </div>
+          {images.length > 1 && <div className="mt-3 flex gap-3 overflow-x-auto pb-1" aria-label="Vehicle photo gallery">
+            {images.map((image, index) => <button key={image} type="button" onClick={() => choosePhoto(index)} aria-label={`Show vehicle photo ${index + 1}`} aria-pressed={selectedPhotoIndex === index} className={`relative h-20 w-28 shrink-0 overflow-hidden rounded-xl border-2 transition sm:h-24 sm:w-36 ${selectedPhotoIndex === index ? 'border-[#FF6B00] ring-2 ring-orange-100' : 'border-transparent opacity-75 hover:opacity-100'}`}>
+              {!failedPhotos.has(image) ? <img src={image} alt="" className="h-full w-full object-cover" onError={() => setFailedPhotos((current) => new Set([...current, image]))} /> : <span className="flex h-full items-center justify-center bg-slate-100 text-slate-400"><CarFront size={24} /></span>}
+            </button>)}
+          </div>}
+          <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+            <h2 className="text-xl font-extrabold text-slate-900">About this vehicle</h2>
+            <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">{vehicle.description || 'The vendor has not added a vehicle description yet.'}</p>
+            {features.length > 0 && <div className="mt-6">
+              <h3 className="text-sm font-bold text-slate-900">Features</h3>
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2">{features.map((feature) => <li key={feature} className="flex items-start gap-2.5 rounded-xl bg-slate-50 px-3.5 py-3 text-sm text-slate-700"><Check size={17} className="mt-0.5 shrink-0 text-emerald-600" />{feature}</li>)}</ul>
+            </div>}
           </div>
         </section>
-        <aside className="h-fit rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Rental rates</p>
-          <div className="mt-4 flex items-baseline justify-between gap-4"><span className="text-sm text-slate-600">Self drive</span><strong className="text-2xl font-black text-slate-900">{money(dailyRate)}<span className="text-xs font-medium text-slate-500"> / day</span></strong></div>
-          {withDriverRate && <div className="mt-3 flex items-baseline justify-between gap-4"><span className="text-sm text-slate-600">With driver</span><strong className="text-lg font-bold text-slate-900">{money(withDriverRate)}<span className="text-xs font-medium text-slate-500"> / day</span></strong></div>}
-          {Number(vehicle.rating) > 0 && <p className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-amber-600"><Star size={16} fill="currentColor" />{Number(vehicle.rating).toFixed(1)} customer rating</p>}
-          {canBook
-            ? <Link to={`/booking?vehicleId=${vehicle.id}`} className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6B00] px-5 py-3.5 text-sm font-bold text-white hover:bg-[#E85D00]">Choose dates <ArrowRight size={17} /></Link>
-            : <p className="mt-7 rounded-xl bg-slate-100 px-5 py-3.5 text-center text-sm font-semibold text-slate-500">This vehicle is not accepting bookings.</p>}
-          {canBook && <p className="mt-3 text-center text-xs text-slate-400">No payment is taken until the vendor confirms availability.</p>}
+
+        <aside className="space-y-5 lg:sticky lg:top-6">
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <p className="text-xs font-bold uppercase tracking-[.15em] text-slate-400">Rental price</p>
+            <div className="mt-2 flex items-baseline gap-2"><strong className="text-3xl font-black tracking-tight text-slate-900">{money(dailyRate)}</strong><span className="text-sm text-slate-500">/ day</span></div>
+            {withDriverRate != null && <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-sm"><span className="text-slate-600">With driver</span><strong className="text-slate-900">{money(withDriverRate)} <span className="font-normal text-slate-500">/ day</span></strong></div>}
+            {canBook
+              ? <Link to={`/booking?vehicleId=${vehicle.id}`} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6B00] px-5 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#E85D00]">Choose dates <ArrowRight size={17} /></Link>
+              : <p className="mt-6 rounded-xl bg-slate-100 px-4 py-3.5 text-center text-sm font-semibold text-slate-500">This vehicle is not accepting bookings.</p>}
+            {canBook && <p className="mt-3 text-center text-xs leading-5 text-slate-500">The vendor confirms your booking before payment is enabled.</p>}
+          </section>
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <h2 className="flex items-center gap-2 text-base font-extrabold text-slate-900"><Gauge size={18} className="text-[#E85D00]" />Specifications</h2>
+            {specifications.length
+              ? <dl className="mt-4 grid grid-cols-2 gap-3">{specifications.map(({ label, value, icon: Icon }) => <div key={label} className="rounded-xl bg-slate-50 p-3"><dt className="flex items-center gap-1.5 text-xs text-slate-500"><Icon size={14} />{label}</dt><dd className="mt-1.5 break-words text-sm font-bold text-slate-800">{value}</dd></div>)}</dl>
+              : <p className="mt-3 text-sm text-slate-500">Vehicle specifications have not been provided.</p>}
+          </section>
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <h2 className="flex items-center gap-2 text-base font-extrabold text-slate-900"><ShieldCheck size={18} className="text-emerald-600" />Rental conditions</h2>
+            {rentalConditions.length
+              ? <dl className="mt-4 divide-y divide-slate-100">{rentalConditions.map(({ label, value }) => <div key={label} className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0"><dt className="text-sm text-slate-500">{label}</dt><dd className="text-right text-sm font-semibold text-slate-800">{value}</dd></div>)}</dl>
+              : <p className="mt-3 text-sm leading-6 text-slate-500">Rental options and conditions will be confirmed by the vendor.</p>}
+            {read('pickupLocation') && <p className="mt-4 flex items-start gap-2 border-t border-slate-100 pt-4 text-sm text-slate-600"><MapPin size={16} className="mt-0.5 shrink-0 text-[#E85D00]" />Pickup: {read('pickupLocation')}</p>}
+            <p className="mt-4 text-xs leading-5 text-slate-400">Please confirm pickup, return, and any additional conditions with the vendor before your trip.</p>
+          </section>
         </aside>
       </div>
     </div>

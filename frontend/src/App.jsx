@@ -7,7 +7,6 @@ import BookingSuccess from './pages/BookingSuccess';
 import BrowseVehicles from './pages/BrowseVehicles';
 import DriverDashboard from './driver/pages/DriverDashboard';
 import DriverForm from './driver/pages/DriverForm';
-import DriverLogin from './driver/pages/DriverLogin';
 import DriverLayout from './driver/components/DriverLayout';
 import AssignedBookingsPage from './driver/pages/AssignedBookingsPage';
 import ActiveTripsPage from './driver/pages/ActiveTripsPage';
@@ -24,7 +23,7 @@ import VehicleDetails from './pages/VehicleDetails';
 import VendorForm from './pages/VendorForm';
 import VendorRegister from './pages/VendorRegister';
 import VendorApplicationSubmitted from './pages/VendorApplicationSubmitted';
-import VendorLogin from './pages/VendorLogin';
+
 import VendorLayout from './components/vendor/VendorLayout';
 import VendorVehicles from './pages/vendor/VendorVehicles';
 import VendorVehicleForm from './pages/vendor/VendorVehicleForm';
@@ -59,8 +58,7 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/vendor/register" element={<VendorRegister />} />
             <Route path="/vendor/application-submitted" element={<VendorApplicationSubmitted />} />
-            <Route path="/vendor/login" element={<VendorLogin />} />
-            <Route path="/driver/login" element={<DriverLogin />} />
+                      
             <Route path="/driver/register" element={<DriverForm />} />
             <Route path="/fleet-manager/login" element={<FleetManagerLogin />} />
            

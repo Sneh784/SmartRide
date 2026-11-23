@@ -22,7 +22,7 @@ const links = [
 export default function CustomerSidebar({ collapsed, drawerOpen, onClose, onToggleCollapse }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
-  const leave = () => { logout(); navigate('/login', { replace: true }); };
+  const leave = () => { logout(); navigate('/', { replace: true }); };
 
   return (
     <>

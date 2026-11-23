@@ -66,7 +66,7 @@ function VendorSidebar({
 
     logout();
 
-    navigate('/vendor/login', { replace: true });
+    navigate('/', { replace: true });
   };
 
   return (

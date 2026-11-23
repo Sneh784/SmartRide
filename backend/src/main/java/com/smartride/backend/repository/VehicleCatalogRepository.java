@@ -15,11 +15,13 @@ import java.time.LocalDateTime;
 public class VehicleCatalogRepository {
     private static final String AVAILABLE_VEHICLE_COLUMNS = """
             id, title, brand, model, category, subcategory, "year" AS modelYear,
-            city, location, daily_rate AS dailyRate, daily_rate AS pricePerDay,
+            city, location, color, daily_rate AS dailyRate, daily_rate AS pricePerDay,
+            hourly_rate AS hourlyRate,
             with_driver_rate AS withDriverRate, rating, availability_status AS availabilityStatus,
             operational_status AS operationalStatus,
             seating_capacity AS seatingCapacity, fuel_type AS fuelType, transmission, mileage,
-            security_deposit AS securityDeposit, description, features,
+            security_deposit AS securityDeposit, km_limit_per_day AS kmLimitPerDay,
+            extra_km_charge AS extraKmCharge, pickup_location AS pickupLocation, description, features,
             with_driver_available AS withDriverAvailable,
             without_driver_available AS withoutDriverAvailable,
             CASE
@@ -104,12 +106,19 @@ public class VehicleCatalogRepository {
 
     public Map<String, Object> findAvailableVehicle(long vehicleId) {
         try {
-            return normalized(jdbcTemplate.queryForMap("""
+            Map<String, Object> vehicle = normalized(jdbcTemplate.queryForMap("""
                     SELECT %s
                     FROM vehicles
                     WHERE id = ?
                       AND UPPER(COALESCE(approval_status, 'PENDING')) = 'APPROVED'
                     """.formatted(AVAILABLE_VEHICLE_COLUMNS), vehicleId));
+            vehicle.put("photos", jdbcTemplate.queryForList("""
+                    SELECT '/api/v1/vehicles/' || vehicle_id || '/photos/' || id
+                    FROM vehicle_media
+                    WHERE vehicle_id = ? AND media_type = 'PHOTO'
+                    ORDER BY id
+                    """, String.class, vehicleId));
+            return vehicle;
         } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vehicle not found or is no longer available");
         }

@@ -47,7 +47,7 @@ function Sidebar({ collapsed, drawerOpen, onClose, onToggleCollapse }) {
     Object.keys(sessionStorage).filter((key) => key.startsWith('fleet-manager:'))
       .forEach((key) => sessionStorage.removeItem(key));
     logout();
-    navigate('/fleet-manager/login', { replace: true });
+    navigate('/', { replace: true });
   };
   return <>
     {drawerOpen && <button aria-label="Close fleet navigation" onClick={onClose} className="fixed inset-0 z-40 bg-slate-950/40 lg:hidden" />}

@@ -34,7 +34,7 @@ export default function AdminSidebar({ collapsed, drawerOpen, onClose, onToggleC
     window.addEventListener('vendor-applications-updated', refresh);
     return () => window.removeEventListener('vendor-applications-updated', refresh);
   }, [location.pathname]);
-  const exit = () => { logout(); navigate('/admin/login', { replace: true }); };
+  const exit = () => { logout(); navigate('/', { replace: true }); };
   return <>
     {drawerOpen && <button aria-label="Close admin navigation" onClick={onClose} className="fixed inset-0 z-40 bg-slate-950/40 lg:hidden" />}
     <aside className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-slate-200 bg-white px-4 py-5 shadow-xl transition-all duration-200 lg:translate-x-0 lg:shadow-none ${collapsed?'lg:w-[88px]':'lg:w-[260px]'} ${drawerOpen?'translate-x-0':'-translate-x-full'}`}>

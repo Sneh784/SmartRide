@@ -60,7 +60,7 @@ export default function DriverHeader({ onOpenDrawer }) {
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-[#C64D00]">{initials || <UserRound size={17} />}</span>
             <span className="hidden max-w-36 truncate text-sm font-semibold text-slate-700 md:block">{name}</span>
           </div>
-          <button onClick={() => { logout(); navigate('/driver/login', { replace: true }); }} className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Log out</button>
+          <button onClick={() => { logout(); navigate('/', { replace: true }); }} className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Log out</button>
         </div>
       </div>
       {notificationError && <p role="status" className="border-t border-amber-100 bg-amber-50 px-4 py-1 text-xs text-amber-800 sm:px-6 lg:px-8">Notification badge: {notificationError}</p>}

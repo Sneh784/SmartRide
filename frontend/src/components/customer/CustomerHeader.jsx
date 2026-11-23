@@ -43,7 +43,7 @@ export default function CustomerHeader({ onOpenDrawer }) {
             {menuOpen && <div className="absolute right-0 top-12 z-50 w-48 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
               <Link onClick={() => setMenuOpen(false)} to="/customer/profile" className="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">My Profile</Link>
               <Link onClick={() => setMenuOpen(false)} to="/customer/bookings" className="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">My Bookings</Link>
-              <button onClick={() => { logout(); navigate('/login', { replace: true }); }} className="w-full rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50">Log out</button>
+              <button onClick={() => { logout(); navigate('/', { replace: true }); }} className="w-full rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50">Log out</button>
             </div>}
           </div>
         </div>
