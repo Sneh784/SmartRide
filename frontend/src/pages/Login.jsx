@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { authApi } from '../api/authApi';
 import { useAuth } from '../context/AuthContext';
+import PasswordInput from '../components/ui/PasswordInput';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
-  const [form, setForm] = useState({ email: 'customer@smartride.com', password: 'password123' });
+  const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -38,11 +40,11 @@ export default function Login() {
       const destinations = {
         CUSTOMER: '/customer/dashboard',
         VENDOR: '/vendor/dashboard',
-        DRIVER: '/driver-dashboard',
+        DRIVER: '/driver/dashboard',
         FLEET_MANAGER: '/vendor-dashboard',
         ADMIN: '/admin-dashboard',
       };
-      navigate(destinations[userData.role] || '/', { replace: true });
+      navigate(location.state?.from?.pathname || destinations[userData.role] || '/', { replace: true });
     } catch (err) {
       const message = err?.response?.data?.message || err?.message || 'Login failed. Please try again.';
       setError(message);
@@ -73,6 +75,7 @@ export default function Login() {
                 id="email"
                 name="email"
                 type="email"
+                required
                 value={form.email}
                 onChange={handleChange}
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-[#ff6b00] focus:bg-white"
@@ -80,12 +83,13 @@ export default function Login() {
             </div>
             <div>
               <label htmlFor="password" className="mb-2 block text-sm font-medium text-slate-700">Password</label>
-              <input
+              <PasswordInput
                 id="password"
                 name="password"
-                type="password"
+                required
                 value={form.password}
                 onChange={handleChange}
+                visibilityLabel="password"
                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-[#ff6b00] focus:bg-white"
               />
             </div>

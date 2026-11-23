@@ -6,8 +6,8 @@ import { customerApi } from '../../api/customerApi';
 
 const titles = {
   dashboard: 'Dashboard', vehicles: 'Browse Vehicles', bookings: 'My Bookings',
-  'active-rentals': 'Active Rentals', 'booking-history': 'Booking History', wishlist: 'Wishlist',
-  payments: 'Payments', kyc: 'KYC Verification', notifications: 'Notifications', profile: 'My Profile', support: 'Support',
+  'active-rentals': 'Active Rentals', 'booking-history': 'Booking History',
+  payments: 'Payments', kyc: 'KYC Verification',profile: 'My Profile',
 };
 
 export default function CustomerHeader({ onOpenDrawer }) {

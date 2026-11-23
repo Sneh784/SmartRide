@@ -10,7 +10,7 @@ public class VendorRegistrationRequest {
     private String fullName;
     @NotBlank @Email @Size(max = 255)
     private String email;
-    @NotBlank @Pattern(regexp = "^(?:\\+?91[ -]?)?[6-9][0-9]{9}$")
+    @NotBlank @Pattern(regexp = "^\\s*(?:\\+?91[ -]?)?[6-9](?:[ -]?[0-9]){9}\\s*$")
     private String mobileNumber;
     @NotBlank @Size(max = 72)
     @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}$")
@@ -23,7 +23,7 @@ public class VendorRegistrationRequest {
     private String businessType;
     @NotBlank @Email @Size(max = 255)
     private String businessEmail;
-    @NotBlank @Pattern(regexp = "^(?:\\+?91[ -]?)?[6-9][0-9]{9}$")
+    @NotBlank @Pattern(regexp = "^\\s*(?:\\+?91[ -]?)?[6-9](?:[ -]?[0-9]){9}\\s*$")
     private String businessMobile;
     @NotBlank @Size(max = 1000)
     private String businessAddress;

@@ -16,12 +16,25 @@ vendorClient.interceptors.request.use((config) => {
 });
 
 export const vendorApi = {
-  register: (formData) => vendorClient.post('/auth/register', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }),
+  register: (formData) => vendorClient.post('/auth/register', formData),
   login: (payload) => vendorClient.post('/auth/login', payload),
   applicationStatus: () => vendorClient.get('/application/status'),
   dashboard: () => vendorClient.get('/dashboard'),
+  vehicles: (params = {}) => vendorClient.get('/vehicles', { params }),
+  vehicle: (id) => vendorClient.get(`/vehicles/${id}`),
+  createVehicle: (payload) => vendorClient.post('/vehicles', payload),
+  updateVehicle: (id, payload) => vendorClient.put(`/vehicles/${id}`, payload),
+  vehicleMedia: (id) => vendorClient.get(`/vehicles/${id}/media`),
+  uploadVehicleMedia: (id, formData) => vendorClient.post(`/vehicles/${id}/media`, formData),
+  vehicleMediaFile: (id, mediaId) => vendorClient.get(`/vehicles/${id}/media/${mediaId}`, { responseType: 'blob' }),
+  deleteVehicle: (id) => vendorClient.delete(`/vehicles/${id}`),
+  setVehicleAvailability: (id, availability) => vendorClient.put(`/vehicles/${id}/availability`, { availability }),
+  bookings: (params = {}) => vendorClient.get('/bookings', { params }),
+  acceptBooking: (id) => vendorClient.put(`/bookings/${id}/accept`),
+  rejectBooking: (id, payload) => vendorClient.put(`/bookings/${id}/reject`, payload),
+  payments: () => vendorClient.get('/payments'),
   notifications: () => vendorClient.get('/notifications'),
   markNotificationRead: (id) => vendorClient.put(`/notifications/${id}/read`),
+  vendorDocument: (id) => vendorClient.get(`/documents/${id}`, { responseType: 'blob' }),
+  uploadVendorDocument: (formData) => vendorClient.post('/documents', formData),
 };

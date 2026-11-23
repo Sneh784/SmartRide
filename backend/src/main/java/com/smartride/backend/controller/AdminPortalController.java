@@ -41,10 +41,22 @@ public class AdminPortalController {
     }
 
     @PatchMapping("/users/{role}/{id}/status")
-    public ResponseEntity<Void> setUserStatus(Authentication authentication, @PathVariable String role,
-                                              @PathVariable long id, @Valid @RequestBody AdminStatusRequest request) {
+    public ResponseEntity<Map<String, Object>> setUserStatus(Authentication authentication, @PathVariable String role,
+                                                              @PathVariable long id, @Valid @RequestBody AdminStatusRequest request) {
         service.setUserStatus(authentication.getName(), id, role, request);
-        return ResponseEntity.noContent().build();
+        if ("DRIVER".equalsIgnoreCase(role) && "APPROVED".equalsIgnoreCase(request.status())) {
+            Map<String, Object> response = new java.util.LinkedHashMap<>();
+            response.put("status", "APPROVED");
+            response.putAll(service.approvalEmailStatus(id, role));
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.ok(Map.of("status", request.status().toUpperCase(java.util.Locale.ROOT)));
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/users/{role}/{id}/approval-email/retry")
+    public ResponseEntity<Map<String, Object>> retryApprovalEmail(Authentication authentication,
+                                                                  @PathVariable String role, @PathVariable long id) {
+        return ResponseEntity.ok(service.retryApprovalEmail(authentication.getName(), id, role));
     }
 
     @GetMapping("/vehicles")

@@ -27,8 +27,8 @@
 		<url/>
 	</scm>
 	<properties>
-    <java.version>24</java.version>
-    <maven.compiler.release>24</maven.compiler.release>
+    <java.version>17</java.version>
+    <maven.compiler.release>17</maven.compiler.release>
     <jjwt.version>0.12.5</jjwt.version>
 </properties>
 	<dependencies>
@@ -51,6 +51,10 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>

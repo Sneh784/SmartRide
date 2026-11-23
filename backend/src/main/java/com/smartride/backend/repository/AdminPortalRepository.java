@@ -3,7 +3,9 @@ package com.smartride.backend.repository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Repository
@@ -64,7 +66,10 @@ public class AdminPortalRepository {
         return jdbc.queryForList("""
                 SELECT id, full_name AS name, email, phone, role,
                        COALESCE(approval_status, CASE WHEN is_active THEN 'ACTIVE' ELSE 'SUSPENDED' END) AS status,
-                       approval_reason AS reason, created_at AS created_at
+                       approval_reason AS reason, created_at AS created_at,
+                       COALESCE((SELECT notification.status FROM approval_email_notifications notification
+                                 WHERE notification.user_id = users.id AND notification.account_type = 'DRIVER'),
+                                'NOT_SENT') AS approval_email_status
                 FROM users
                 WHERE role = ?
                   AND (? = '' OR COALESCE(approval_status, CASE WHEN is_active THEN 'ACTIVE' ELSE 'SUSPENDED' END) = ?)
@@ -82,6 +87,15 @@ public class AdminPortalRepository {
         return jdbc.update("""
                 UPDATE users SET approval_status = ?, approval_reason = ?, is_active = ? WHERE id = ? AND role = ?
                 """, status, reason, active, id, role);
+    }
+
+    public int approveDriver(long id, long adminId) {
+        return jdbc.update("""
+                UPDATE users
+                SET approval_status = 'APPROVED', approval_reason = NULL, is_active = TRUE,
+                    approved_at = CURRENT_TIMESTAMP, approved_by = ?
+                WHERE id = ? AND role = 'DRIVER' AND approval_status = 'PENDING'
+                """, adminId, id);
     }
 
     public void audit(String adminEmail, String action, String entityType, long entityId, String reason) {
@@ -143,12 +157,14 @@ public class AdminPortalRepository {
     public List<Map<String, Object>> kyc(String status) {
         return jdbc.queryForList("""
                 SELECT k.customer_id AS id, k.document_type, k.document_last_four,
+                       k.document_original_name,
+                       CASE WHEN k.document_storage_key IS NULL THEN FALSE ELSE TRUE END AS has_document,
                        k.status, k.rejection_reason, k.submitted_at,
                        u.full_name AS customer_name, u.email
                 FROM customer_kyc k JOIN users u ON u.id = k.customer_id
                 WHERE (? = '' OR UPPER(k.status) = UPPER(?))
                 ORDER BY k.submitted_at DESC
-                """, status, status);
+                """, status, status).stream().map(AdminPortalRepository::normalized).toList();
     }
 
     public int setKycStatus(long customerId, String status, String reason) {
@@ -222,5 +238,11 @@ public class AdminPortalRepository {
                 INSERT INTO admin_notifications (title, message, event_type, entity_type, entity_id)
                 VALUES (?, ?, ?, ?, ?)
                 """, title, message, eventType, entityType, entityId);
+    }
+
+    private static Map<String, Object> normalized(Map<String, Object> row) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        row.forEach((key, value) -> result.put(key.toLowerCase(Locale.ROOT), value));
+        return result;
     }
 }

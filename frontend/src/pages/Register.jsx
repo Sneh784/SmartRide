@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authApi } from '../api/authApi';
+import PasswordInput from '../components/ui/PasswordInput';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -155,21 +156,21 @@ export default function Register() {
             <div className="grid gap-5 sm:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">Password</label>
-                <input
-                  type="password"
+                <PasswordInput
                   name="password"
                   value={form.password}
                   onChange={handleChange}
+                  visibilityLabel="password"
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-[#ff6b00] focus:bg-white"
                 />
               </div>
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">Confirm Password</label>
-                <input
-                  type="password"
+                <PasswordInput
                   name="confirmPassword"
                   value={form.confirmPassword}
                   onChange={handleChange}
+                  visibilityLabel="confirm password"
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-[#ff6b00] focus:bg-white"
                 />
               </div>

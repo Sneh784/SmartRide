@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { vendorApi } from '../api/vendorApi';
+import PasswordInput from '../components/ui/PasswordInput';
 
 const initialForm = {
   fullName: '', email: '', mobileNumber: '', password: '', confirmPassword: '',
   businessName: '', businessType: '', businessEmail: '', businessMobile: '',
-  businessAddress: '', city: '', state: '', pincode: '', registrationNumber: '',
+  businessAddress: '', registrationNumber: '', city: '', state: '', pincode: '',
   termsAccepted: false, vendorPoliciesAccepted: false,
 };
 
@@ -13,23 +14,35 @@ const fileFields = [
   ['profileImage', 'Profile image', false, true],
   ['identityProof', 'Identity proof (Aadhaar or accepted ID)', true, false],
   ['panCard', 'PAN card', true, false],
-  ['businessDocument', 'Business registration document', false, false],
-  ['addressProof', 'Address proof', true, false],
+  ['businessDocument', 'Business registration document (optional)', false, false],
+  ['addressProof', 'Business address proof', true, false],
 ];
 
 function Field({ label, name, value, onChange, required = true, type = 'text', ...props }) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}{required && ' *'}</span>
-      <input
-        name={name}
-        type={type}
-        value={value}
-        onChange={onChange}
-        required={required}
-        className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-[#FF6B00] focus:ring-2 focus:ring-orange-100"
-        {...props}
-      />
+      {type === 'password' ? (
+        <PasswordInput
+          name={name}
+          value={value}
+          onChange={onChange}
+          required={required}
+          visibilityLabel={label.toLowerCase()}
+          className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-[#FF6B00] focus:ring-2 focus:ring-orange-100"
+          {...props}
+        />
+      ) : (
+        <input
+          name={name}
+          type={type}
+          value={value}
+          onChange={onChange}
+          required={required}
+          className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-[#FF6B00] focus:ring-2 focus:ring-orange-100"
+          {...props}
+        />
+      )}
     </label>
   );
 }
@@ -66,6 +79,7 @@ export default function VendorRegister() {
       : ['application/pdf', 'image/png', 'image/jpeg'].includes(file.type);
     if (!supportedType || file.size > 5 * 1024 * 1024) {
       setError(`${event.target.labels[0]?.innerText || 'File'} must be a supported ${imageOnly ? 'PNG or JPG image' : 'PDF, PNG, or JPG'} no larger than 5 MB.`);
+      setFiles((current) => ({ ...current, [name]: null }));
       event.target.value = '';
       return;
     }
@@ -118,28 +132,34 @@ export default function VendorRegister() {
         <Section title="Personal information">
           <Field label="Full name" name="fullName" value={form.fullName} onChange={handleChange} autoComplete="name" />
           <Field label="Email address" name="email" type="email" value={form.email} onChange={handleChange} autoComplete="email" />
-          <Field label="Mobile number" name="mobileNumber" type="tel" value={form.mobileNumber} onChange={handleChange} pattern="^(?:\+?91[ -]?)?[6-9][0-9]{9}$" title="Enter a valid Indian mobile number" autoComplete="tel" />
+          <Field label="Mobile number" name="mobileNumber" type="tel" value={form.mobileNumber} onChange={handleChange} pattern="^\s*(?:\+?91[ \-]?)?[6-9](?:[ \-]?[0-9]){9}\s*$" title="Enter a valid Indian mobile number" autoComplete="tel" />
           <Field label="Password" name="password" type="password" value={form.password} onChange={handleChange} autoComplete="new-password" />
           <Field label="Confirm password" name="confirmPassword" type="password" value={form.confirmPassword} onChange={handleChange} autoComplete="new-password" />
-        </Section>
-
-        <Section title="Business information">
-          <Field label="Business name" name="businessName" value={form.businessName} onChange={handleChange} />
-          <Field label="Business type" name="businessType" value={form.businessType} onChange={handleChange} placeholder="Individual, company, partnership..." />
-          <Field label="Business email" name="businessEmail" type="email" value={form.businessEmail} onChange={handleChange} />
-          <Field label="Business mobile number" name="businessMobile" type="tel" value={form.businessMobile} onChange={handleChange} pattern="^(?:\+?91[ -]?)?[6-9][0-9]{9}$" title="Enter a valid Indian mobile number" />
-          <label className="block sm:col-span-2">
-            <span className="mb-1.5 block text-sm font-semibold text-slate-700">Business address *</span>
-            <textarea name="businessAddress" required value={form.businessAddress} onChange={handleChange} rows={3} className="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-sm outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-orange-100" />
-          </label>
           <Field label="City" name="city" value={form.city} onChange={handleChange} />
           <Field label="State" name="state" value={form.state} onChange={handleChange} />
           <Field label="Pincode" name="pincode" value={form.pincode} onChange={handleChange} pattern="[0-9]{6}" title="Enter a six-digit pincode" />
-          <Field label="Business registration number" name="registrationNumber" value={form.registrationNumber} onChange={handleChange} required={false} />
         </Section>
 
-        <Section title="Identity verification">
-          <p className="text-sm text-slate-500 sm:col-span-2">Upload PDF, PNG, or JPG files. Each file must be 5 MB or smaller. Files are stored privately and are only available to you and authorized administrators.</p>
+        <Section title="Business information">
+          <Field label="Business name" name="businessName" value={form.businessName} onChange={handleChange} autoComplete="organization" />
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-semibold text-slate-700">Business type *</span>
+            <select name="businessType" value={form.businessType} onChange={handleChange} required className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-[#FF6B00] focus:ring-2 focus:ring-orange-100">
+              <option value="">Select business type</option>
+              {['Individual', 'Partnership', 'Limited Liability Partnership', 'Private Limited Company', 'Public Limited Company', 'Other'].map((typeOption) => <option key={typeOption} value={typeOption}>{typeOption}</option>)}
+            </select>
+          </label>
+          <Field label="Business email" name="businessEmail" type="email" value={form.businessEmail} onChange={handleChange} autoComplete="email" />
+          <Field label="Business mobile number" name="businessMobile" type="tel" value={form.businessMobile} onChange={handleChange} pattern="^\s*(?:\+?91[ \-]?)?[6-9](?:[ \-]?[0-9]){9}\s*$" title="Enter a valid Indian mobile number" autoComplete="tel" />
+          <Field label="Registration number (optional)" name="registrationNumber" value={form.registrationNumber} onChange={handleChange} required={false} maxLength={100} />
+          <label className="block sm:col-span-2">
+            <span className="mb-1.5 block text-sm font-semibold text-slate-700">Business address *</span>
+            <textarea name="businessAddress" required maxLength={1000} value={form.businessAddress} onChange={handleChange} rows={3} className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-[#FF6B00] focus:ring-2 focus:ring-orange-100" />
+          </label>
+        </Section>
+
+        <Section title="Identity and business documents">
+          <p className="text-sm text-slate-500 sm:col-span-2">Upload PDF, PNG, or JPG files. Each file must be 5 MB or smaller. Your profile image must be PNG or JPG. Files are stored privately and are only available to authorized administrators.</p>
           {fileFields.map(([name, label, required, imageOnly]) => (
             <label key={name} className="block">
               <span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}{required && ' *'}</span>

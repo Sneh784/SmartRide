@@ -19,7 +19,11 @@ public class JwtService {
     public JwtService(
             @Value("${jwt.secret:change-me-in-production}") String secret,
             @Value("${jwt.expiration-ms:86400000}") long expirationMs) {
-        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        byte[] secretBytes = secret == null ? new byte[0] : secret.getBytes(StandardCharsets.UTF_8);
+        if (secretBytes.length < 32) {
+            throw new IllegalStateException("JWT_SECRET must be configured with at least 32 bytes");
+        }
+        this.signingKey = Keys.hmacShaKeyFor(secretBytes);
         this.expirationMs = expirationMs;
     }
 

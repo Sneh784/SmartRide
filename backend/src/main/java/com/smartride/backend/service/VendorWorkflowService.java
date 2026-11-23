@@ -13,14 +13,13 @@ import com.smartride.backend.repository.UserRepository;
 import com.smartride.backend.repository.VendorApplicationRepository;
 import com.smartride.backend.repository.VendorDocumentRepository;
 import com.smartride.backend.security.JwtService;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -38,6 +37,8 @@ import java.util.regex.Pattern;
 @Service
 public class VendorWorkflowService {
     private static final Pattern PHONE_DIGITS = Pattern.compile("\\D");
+    private static final Set<String> ADDITIONAL_DOCUMENT_TYPES =
+            Set.of("IDENTITY_PROOF", "PAN_CARD", "ADDRESS_PROOF", "BUSINESS_REGISTRATION");
     private final VendorApplicationRepository applications;
     private final VendorDocumentRepository documents;
     private final UserRepository users;
@@ -46,10 +47,12 @@ public class VendorWorkflowService {
     private final JwtService jwtService;
     private final JdbcTemplate jdbc;
     private final VendorDocumentStorage storage;
+    private final ApprovalEmailNotificationService approvalEmails;
 
     public VendorWorkflowService(VendorApplicationRepository applications, VendorDocumentRepository documents,
                                  UserRepository users, RoleRepository roles, PasswordEncoder passwordEncoder,
-                                 JwtService jwtService, JdbcTemplate jdbc, VendorDocumentStorage storage) {
+                                 JwtService jwtService, JdbcTemplate jdbc, VendorDocumentStorage storage,
+                                 ApprovalEmailNotificationService approvalEmails) {
         this.applications = applications;
         this.documents = documents;
         this.users = users;
@@ -58,6 +61,7 @@ public class VendorWorkflowService {
         this.jwtService = jwtService;
         this.jdbc = jdbc;
         this.storage = storage;
+        this.approvalEmails = approvalEmails;
     }
 
     @Transactional
@@ -180,6 +184,51 @@ public class VendorWorkflowService {
         return applicationDetails(application, false);
     }
 
+    @Transactional
+    public Map<String, Object> uploadDocument(String email, String documentType, MultipartFile file) {
+        String normalizedType = documentType == null ? "" : documentType.trim().toUpperCase(Locale.ROOT);
+        if (!ADDITIONAL_DOCUMENT_TYPES.contains(normalizedType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported vendor document type");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select a document to upload");
+        }
+
+        User user = requireVendor(email);
+        VendorApplication application = applications.findByUserId(user.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendor application not found"));
+        VendorDocumentStorage.StoredFile stored;
+        try {
+            stored = storage.store(file, false);
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage(), exception);
+        }
+
+        VendorDocument document = new VendorDocument();
+        document.setApplication(application);
+        document.setDocumentType(normalizedType);
+        document.setStorageKey(stored.key());
+        document.setOriginalName(normalizedType + stored.extension());
+        document.setContentType(stored.contentType());
+        document.setUploadedAt(LocalDateTime.now());
+        try {
+            documents.save(document);
+        } catch (RuntimeException exception) {
+            storage.delete(stored.key());
+            throw exception;
+        }
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status != STATUS_COMMITTED) storage.delete(stored.key());
+                }
+            });
+        }
+        return documentDetails(document, false);
+    }
+
     @Transactional(readOnly = true)
     public Map<String, Object> adminApplications(String status, String search, LocalDate from, LocalDate to,
                                                   int page, int size) {
@@ -195,11 +244,88 @@ public class VendorWorkflowService {
         }
         LocalDateTime fromTime = from == null ? null : from.atStartOfDay();
         LocalDateTime toTime = to == null ? null : to.plusDays(1).atStartOfDay();
-        Page<VendorApplication> results = applications.search(normalized, search == null ? "" : search.trim(),
-                fromTime, toTime, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "submittedAt")));
-        List<Map<String, Object>> items = results.getContent().stream().map(this::applicationSummary).toList();
-        return Map.of("items", items, "page", results.getNumber(), "size", results.getSize(),
-                "totalElements", results.getTotalElements(), "totalPages", results.getTotalPages());
+        String normalizedSearch = search == null ? "" : search.trim();
+
+        StringBuilder countSql = new StringBuilder("""
+                SELECT COUNT(*)
+                FROM vendor_applications application
+                JOIN users vendor ON vendor.id = application.user_id
+                WHERE 1 = 1
+                """);
+        StringBuilder itemsSql = new StringBuilder("""
+                SELECT application.id, vendor.id AS user_id, application.application_number, vendor.full_name,
+                       vendor.email, vendor.phone, application.business_name, application.city,
+                       application.submitted_at, application.status
+                FROM vendor_applications application
+                JOIN users vendor ON vendor.id = application.user_id
+                WHERE 1 = 1
+                """);
+        List<Object> countArgs = new ArrayList<>();
+        List<Object> itemsArgs = new ArrayList<>();
+
+        if (!normalized.isEmpty()) {
+            countSql.append(" AND application.status = ?");
+            itemsSql.append(" AND application.status = ?");
+            countArgs.add(normalized);
+            itemsArgs.add(normalized);
+        }
+        if (!normalizedSearch.isEmpty()) {
+            String searchPattern = "%" + normalizedSearch.toLowerCase(Locale.ROOT) + "%";
+            countSql.append("""
+                     AND (LOWER(vendor.full_name) LIKE ?
+                          OR LOWER(vendor.email) LIKE ?
+                          OR LOWER(application.application_number) LIKE ?)
+                    """);
+            itemsSql.append("""
+                     AND (LOWER(vendor.full_name) LIKE ?
+                          OR LOWER(vendor.email) LIKE ?
+                          OR LOWER(application.application_number) LIKE ?)
+                    """);
+            countArgs.add(searchPattern);
+            countArgs.add(searchPattern);
+            countArgs.add(searchPattern);
+            itemsArgs.add(searchPattern);
+            itemsArgs.add(searchPattern);
+            itemsArgs.add(searchPattern);
+        }
+        if (fromTime != null) {
+            countSql.append(" AND application.submitted_at >= ?");
+            itemsSql.append(" AND application.submitted_at >= ?");
+            countArgs.add(fromTime);
+            itemsArgs.add(fromTime);
+        }
+        if (toTime != null) {
+            countSql.append(" AND application.submitted_at < ?");
+            itemsSql.append(" AND application.submitted_at < ?");
+            countArgs.add(toTime);
+            itemsArgs.add(toTime);
+        }
+
+        itemsSql.append(" ORDER BY application.submitted_at DESC, application.id DESC LIMIT ? OFFSET ?");
+        itemsArgs.add(size);
+        itemsArgs.add((long) page * size);
+
+        Long totalElements = jdbc.queryForObject(countSql.toString(), Long.class,
+                countArgs.toArray());
+        List<Map<String, Object>> items = jdbc.queryForList(itemsSql.toString(),
+                itemsArgs.toArray()).stream().map(row -> {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("id", row.get("id"));
+                    item.put("applicationNumber", row.get("application_number"));
+                    item.put("fullName", row.get("full_name"));
+                    item.put("email", row.get("email"));
+                    item.put("mobileNumber", row.get("phone"));
+                    item.put("businessName", row.get("business_name"));
+                    item.put("city", row.get("city"));
+                    item.put("submittedAt", row.get("submitted_at"));
+                    item.put("status", row.get("status"));
+                    item.putAll(approvalEmails.status(((Number) row.get("user_id")).longValue(), "VENDOR"));
+                    return item;
+                }).toList();
+        long total = totalElements == null ? 0 : totalElements;
+        int totalPages = (int) ((total + size - 1) / size);
+        return Map.of("items", items, "page", page, "size", size,
+                "totalElements", total, "totalPages", totalPages);
     }
 
     @Transactional(readOnly = true)
@@ -254,6 +380,24 @@ public class VendorWorkflowService {
             default -> "Your SmartRide vendor account has been suspended. Please contact SmartRide Support.";
         };
         addVendorNotification(vendor.getId(), "Application " + nextStatus.toLowerCase(Locale.ROOT), message);
+        if ("APPROVED".equals(nextStatus)) approvalEmails.queue(vendor, "VENDOR");
+    }
+
+    public Map<String, Object> approvalEmailStatus(long applicationId) {
+        VendorApplication application = applications.findById(applicationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendor application not found"));
+        return approvalEmails.status(application.getUser().getId(), "VENDOR");
+    }
+
+    @Transactional
+    public Map<String, Object> retryApprovalEmail(long applicationId) {
+        VendorApplication application = applications.findById(applicationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendor application not found"));
+        if (!"APPROVED".equals(application.getStatus()) || !application.getUser().isActive()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Only active, approved vendors can receive an approval email");
+        }
+        return approvalEmails.retry(application.getUser().getId(), "VENDOR");
     }
 
     @Transactional(readOnly = true)
@@ -275,19 +419,6 @@ public class VendorWorkflowService {
         if (jdbc.update("UPDATE vendor_notifications SET is_read = TRUE WHERE id = ? AND user_id = ?", id, user.getId()) == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Notification not found");
         }
-    }
-
-    @Transactional(readOnly = true)
-    public Map<String, Object> dashboard(String email) {
-        User user = requireVendor(email);
-        Map<String, Object> stats = jdbc.queryForMap("""
-                SELECT
-                  (SELECT COUNT(*) FROM vehicles WHERE vendor_id = ?) AS total_vehicles,
-                  (SELECT COUNT(*) FROM vehicles WHERE vendor_id = ? AND UPPER(COALESCE(approval_status, 'PENDING')) = 'APPROVED') AS approved_vehicles,
-                  (SELECT COUNT(*) FROM vehicles WHERE vendor_id = ? AND UPPER(COALESCE(approval_status, 'PENDING')) = 'PENDING') AS pending_vehicles,
-                  (SELECT COUNT(*) FROM bookings b JOIN vehicles v ON v.id = b.vehicle_id WHERE v.vendor_id = ?) AS total_bookings
-                """, user.getId(), user.getId(), user.getId(), user.getId());
-        return stats;
     }
 
     @Transactional(readOnly = true)
@@ -345,15 +476,20 @@ public class VendorWorkflowService {
         result.put("rejectionReason", application.getRejectionReason());
         result.put("reviewedAt", application.getReviewedAt());
         result.put("reviewedBy", application.getReviewedBy() == null ? null : application.getReviewedBy().getFullName());
-        result.put("documents", documents.findByApplicationIdOrderById(application.getId()).stream().map(document -> {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("id", document.getId());
-            item.put("type", document.getDocumentType());
-            item.put("downloadUrl", (admin ? "/api/admin/vendors/documents/" : "/api/vendor/documents/")
-                    + document.getId());
-            return item;
-        }).toList());
+        result.put("documents", documents.findByApplicationIdOrderById(application.getId()).stream()
+                .map(document -> documentDetails(document, admin)).toList());
         return result;
+    }
+
+    private Map<String, Object> documentDetails(VendorDocument document, boolean admin) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", document.getId());
+        item.put("type", document.getDocumentType());
+        item.put("originalName", document.getOriginalName());
+        item.put("uploadedAt", document.getUploadedAt());
+        item.put("downloadUrl", (admin ? "/api/admin/vendors/documents/" : "/api/vendor/documents/")
+                + document.getId());
+        return item;
     }
 
     private User requireVendor(String email) {

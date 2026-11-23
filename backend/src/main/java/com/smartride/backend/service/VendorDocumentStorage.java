@@ -42,7 +42,7 @@ public class VendorDocumentStorage {
 
     public Path resolve(String key) {
         Path resolved = root.resolve(key).normalize();
-        if (!resolved.getParent().equals(root)) {
+        if (!root.equals(resolved.getParent())) {
             throw new IllegalArgumentException("Invalid document reference");
         }
         return resolved;
@@ -63,7 +63,9 @@ public class VendorDocumentStorage {
             return ".pdf";
         }
         if (bytes.length >= 8 && (bytes[0] & 0xff) == 0x89 && bytes[1] == 'P'
-                && bytes[2] == 'N' && bytes[3] == 'G') return ".png";
+                && bytes[2] == 'N' && bytes[3] == 'G' && (bytes[4] & 0xff) == 0x0d
+                && (bytes[5] & 0xff) == 0x0a && (bytes[6] & 0xff) == 0x1a
+                && (bytes[7] & 0xff) == 0x0a) return ".png";
         if (bytes.length >= 3 && (bytes[0] & 0xff) == 0xff && (bytes[1] & 0xff) == 0xd8
                 && (bytes[2] & 0xff) == 0xff) return ".jpg";
         throw new IllegalArgumentException("Documents must be valid PDF, PNG, JPG, or JPEG files");

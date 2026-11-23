@@ -6,25 +6,43 @@ import com.smartride.backend.dto.CustomerProfileDto;
 import com.smartride.backend.dto.CustomerProfileUpdateRequest;
 import com.smartride.backend.dto.CustomerKycRequest;
 import com.smartride.backend.dto.CustomerSupportRequest;
+import com.smartride.backend.dto.CustomerBookingReviewRequest;
 import com.smartride.backend.entity.User;
 import com.smartride.backend.repository.CustomerPortalRepository;
+import com.smartride.backend.repository.VehicleCatalogRepository;
 import com.smartride.backend.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 @Service
 public class CustomerPortalService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(CustomerPortalService.class);
     private final UserRepository userRepository;
     private final CustomerPortalRepository portalRepository;
+    private final VehicleCatalogRepository vehicleCatalogRepository;
+    private final CustomerKycDocumentStorage kycDocumentStorage;
 
-    public CustomerPortalService(UserRepository userRepository, CustomerPortalRepository portalRepository) {
+    public CustomerPortalService(UserRepository userRepository, CustomerPortalRepository portalRepository,
+                                 VehicleCatalogRepository vehicleCatalogRepository,
+                                 CustomerKycDocumentStorage kycDocumentStorage) {
         this.userRepository = userRepository;
         this.portalRepository = portalRepository;
+        this.vehicleCatalogRepository = vehicleCatalogRepository;
+        this.kycDocumentStorage = kycDocumentStorage;
     }
 
     public CustomerDashboardDto dashboard(String email) {
@@ -77,7 +95,18 @@ public class CustomerPortalService {
 
     public List<Map<String, Object>> vehicles(String email) {
         requireCustomer(email);
-        return portalRepository.findVehicles();
+        return vehicleCatalogRepository.findAvailableVehicles();
+    }
+
+    public Map<String, Object> vehicle(String email, long vehicleId) {
+        requireCustomer(email);
+        return vehicleCatalogRepository.findAvailableVehicle(vehicleId);
+    }
+
+    @Transactional
+    public void submitReview(String email, long bookingId, CustomerBookingReviewRequest request) {
+        portalRepository.submitReview(requireCustomer(email).getId(), bookingId,
+                request.rating(), request.comment());
     }
 
     public List<Map<String, Object>> wishlist(String email) {
@@ -96,9 +125,48 @@ public class CustomerPortalService {
         return portalRepository.findKyc(requireCustomer(email).getId());
     }
 
-    public void submitKyc(String email, CustomerKycRequest request) {
-        portalRepository.submitKyc(requireCustomer(email).getId(),
-                request.documentType().trim(), request.documentNumber().trim());
+    @Transactional
+    public void submitKyc(String email, CustomerKycRequest request, MultipartFile document) {
+        long customerId = requireCustomer(email).getId();
+        if (!request.hasSupportedType()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a supported identity document type");
+        }
+        String oldKey = portalRepository.kycDocumentKey(customerId);
+        CustomerKycDocumentStorage.StoredFile stored = document == null || document.isEmpty()
+                ? null : kycDocumentStorage.store(document);
+        try {
+            portalRepository.submitKyc(customerId, request.documentType().trim().toUpperCase(Locale.ROOT),
+                    request.documentNumber().trim(), stored);
+        } catch (RuntimeException exception) {
+            if (stored != null) cleanupKycDocument(stored.key());
+            throw exception;
+        }
+        if (stored != null) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    if (oldKey != null && !oldKey.equals(stored.key())) cleanupKycDocument(oldKey);
+                }
+
+                @Override
+                public void afterCompletion(int status) {
+                    if (status != STATUS_COMMITTED) cleanupKycDocument(stored.key());
+                }
+            });
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public KycDocument adminKycDocument(long customerId) {
+        Map<String, Object> document = portalRepository.kycDocument(customerId);
+        Object key = document.get("storage_key");
+        if (key == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "KYC document not found");
+        Path path = kycDocumentStorage.resolve(String.valueOf(key));
+        if (!Files.isRegularFile(path)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "KYC document file not found");
+        }
+        return new KycDocument(path, String.valueOf(document.get("original_name")),
+                String.valueOf(document.get("content_type")));
     }
 
     public List<Map<String, Object>> notifications(String email) {
@@ -148,5 +216,15 @@ public class CustomerPortalService {
         String status = booking.status().trim().toUpperCase(Locale.ROOT);
         for (String candidate : statuses) if (candidate.equals(status)) return true;
         return false;
+    }
+
+    public record KycDocument(Path path, String originalName, String contentType) { }
+
+    private void cleanupKycDocument(String key) {
+        try {
+            kycDocumentStorage.delete(key);
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Could not clean up customer KYC document {}", key, exception);
+        }
     }
 }

@@ -65,13 +65,22 @@ public class AuthService {
         String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid email or password"));
-        if (!user.isActive() || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new IllegalArgumentException("Invalid email or password");
+        }
+        if (user.getRole() == RoleName.DRIVER
+                && "PENDING".equalsIgnoreCase(user.getApprovalStatus())) {
+            throw new IllegalArgumentException("Your driver application is pending administrator approval");
         }
         if (user.getRole() == RoleName.VENDOR
                 && !"APPROVED".equalsIgnoreCase(user.getApprovalStatus())) {
             throw new IllegalArgumentException("Vendor account is not approved");
         }
+        if (user.getRole() == RoleName.DRIVER
+                && !"APPROVED".equalsIgnoreCase(user.getApprovalStatus())) {
+            throw new IllegalArgumentException("Driver account is not approved");
+        }
+        if (!user.isActive()) throw new IllegalArgumentException("Invalid email or password");
         return new LoginResponse(jwtService.generateToken(user.getEmail()), "Bearer",
                 user.getFullName(), user.getRole().name(), user.getEmail());
     }
